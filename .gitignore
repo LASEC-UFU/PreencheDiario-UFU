@@ -6,5 +6,6 @@
 /pyvenv.cfg
 /Scripts
 /UFU_Diario_Preenchimento.spec
-/__pycache__
+__pycache__/
+*.py[cod]
 *.spec

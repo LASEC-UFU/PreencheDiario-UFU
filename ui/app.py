@@ -1,8 +1,9 @@
 from __future__ import annotations
 import json, threading, re
+from pathlib import Path
 from typing import Dict, Optional
 from tkinter import (
-    Tk, Frame, Button, Listbox, Text, Scrollbar, END, SINGLE, BOTH, LEFT, RIGHT, Y, X, TOP, BOTTOM,
+    Tk, Frame, Button, Listbox, Text, Scrollbar, Entry, LabelFrame, END, SINGLE, BOTH, LEFT, RIGHT, Y, X, TOP, BOTTOM,
     filedialog, simpledialog, messagebox, StringVar
 )
 from tkinter import ttk
@@ -11,8 +12,16 @@ from selenium.webdriver.remote.webdriver import WebDriver
 
 # project services (já existentes no seu projeto)
 from services.drivers import create_driver
-from services.utils import GET_URL, validate_value_map, preview_text
+from services.utils import GET_URL, SEI_URL, validate_value_map, preview_text
 from services.diario import fill_entries, try_click_save
+from services.sei import (
+    AutomacaoSEI,
+    FichaDisciplina,
+    STATUS_ATUALIZADA,
+    STATUS_CRIADA,
+    STATUS_SEM_ALTERACAO,
+    ler_pasta_fichas,
+)
 
 # ui & features
 from ui.dialogs import ask_edit_item, choose_from_list, ask_shift_params
@@ -23,7 +32,7 @@ from features.date_shift import shift_value_map
 class App(Tk):
     def __init__(self):
         super().__init__()
-        self.title("UFU Diário – Preenchimento (visual)")
+        self.title("UFU – Diário e SEI (preenchimento visual)")
         self.geometry("1200x720")
         self.minsize(1000, 600)
 
@@ -31,6 +40,10 @@ class App(Tk):
         self.value_map: Dict[str, str] = {}
         self.current_path: Optional[str] = None
         self.browser_var = StringVar(value="edge")
+        self.sei_url_var = StringVar(value=SEI_URL)
+        self.sei_folder_var = StringVar(value="Nenhuma pasta selecionada")
+        self.fichas_sei: list[FichaDisciplina] = []
+        self.sei_running = False
 
         self._build_ui()
 
@@ -54,6 +67,28 @@ class App(Tk):
         self.btn_import_excel = Button(top, text="Importar Excel", command=self.on_import_excel)
         self.btn_import_excel.pack(side=LEFT, padx=4, pady=6)
 
+        sei = LabelFrame(self, text="SEI / Fichas de componentes curriculares")
+        sei.pack(side=TOP, fill=X, padx=6, pady=(0, 6))
+
+        ttk.Label(sei, text="Endereço:").pack(side=LEFT, padx=(6, 2), pady=6)
+        self.ent_sei_url = Entry(sei, textvariable=self.sei_url_var, width=30)
+        self.ent_sei_url.pack(side=LEFT, fill=X, expand=True, padx=(0, 4), pady=6)
+        self.btn_open_sei = Button(sei, text="Abrir SEI", command=self.on_open_sei)
+        self.btn_open_sei.pack(side=LEFT, padx=4, pady=6)
+        self.btn_choose_fichas = Button(
+            sei, text="Selecionar pasta de fichas", command=self.on_choose_fichas
+        )
+        self.btn_choose_fichas.pack(side=LEFT, padx=4, pady=6)
+        self.lbl_fichas = ttk.Label(sei, textvariable=self.sei_folder_var, width=28)
+        self.lbl_fichas.pack(side=LEFT, padx=4, pady=6)
+        self.btn_load_sei = Button(
+            sei,
+            text="Carregar fichas no processo",
+            command=self.on_load_fichas_sei,
+            state="disabled",
+        )
+        self.btn_load_sei.pack(side=RIGHT, padx=6, pady=6)
+
         main = Frame(self); main.pack(side=TOP, fill=BOTH, expand=True)
         left = Frame(main, width=520); left.pack(side=LEFT, fill=BOTH, expand=True)
         right = Frame(main); right.pack(side=RIGHT, fill=BOTH, expand=True)
@@ -74,10 +109,13 @@ class App(Tk):
         self.logs.configure(yscrollcommand=sb.set)
         self.logs.pack(side=LEFT, fill=BOTH, expand=True, padx=6, pady=6)
         sb.pack(side=RIGHT, fill=Y)
-        self._log("Pronto. Abra o navegador, carregue dados.json e navegue até a turma.")
+        self._log("Pronto. Use o fluxo do Diário ou abra o SEI, faça login e entre no processo desejado.")
 
     # ---------- Helpers ----------
     def _log(self, msg: str):
+        if threading.current_thread() is not threading.main_thread():
+            self.after(0, self._log, msg)
+            return
         self.logs.configure(state="normal")
         self.logs.insert(END, msg + "\n")
         self.logs.see(END)
@@ -94,8 +132,22 @@ class App(Tk):
             self.listbox.insert(END, f"{k}: {preview_text(v)}")
 
     def _validate_ready(self):
-        ready = (self.driver is not None) and bool(self.value_map)
+        if threading.current_thread() is not threading.main_thread():
+            self.after(0, self._validate_ready)
+            return
+        ready = (self.driver is not None) and bool(self.value_map) and not self.sei_running
         self.btn_fill.configure(state=("normal" if ready else "disabled"))
+        ready_sei = (self.driver is not None) and bool(self.fichas_sei) and not self.sei_running
+        self.btn_load_sei.configure(state=("normal" if ready_sei else "disabled"))
+
+    def _set_sei_running(self, running: bool):
+        self.sei_running = running
+        state = "disabled" if running else "normal"
+        self.btn_open_sei.configure(state=state)
+        self.btn_open_browser.configure(state=state)
+        self.btn_choose_fichas.configure(state=state)
+        self.ent_sei_url.configure(state=state)
+        self._validate_ready()
 
     # ---------- Ordenação por data (DD/MM/AAAA) ----------
     def _key_sort_key(self, k: str):
@@ -126,6 +178,132 @@ class App(Tk):
                 self._validate_ready()
             except Exception as e:
                 self._log(f"[ERRO] Falha ao abrir navegador: {e}")
+        threading.Thread(target=_run, daemon=True).start()
+
+    def on_open_sei(self):
+        url = self.sei_url_var.get().strip()
+        if not re.match(r"^https?://", url, flags=re.IGNORECASE):
+            messagebox.showerror(
+                "Endereço do SEI",
+                "Informe uma URL iniciada por http:// ou https://.",
+                parent=self,
+            )
+            return
+        browser = (self.browser_var.get() or "edge").strip().lower()
+
+        def _run():
+            try:
+                if self.driver is None:
+                    self._log(f"[UI] Abrindo {browser.title()}...")
+                    self.driver = create_driver(browser=browser, logger=self._log)
+                self._log(f"[SEI] Navegando para: {url}")
+                self.driver.get(url)
+                self._log("[SEI] Faça o login manualmente e abra o processo que receberá as fichas.")
+                self.after(0, self._validate_ready)
+            except Exception as e:
+                self._log(f"[ERRO] Falha ao abrir o SEI: {e}")
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def on_choose_fichas(self):
+        pasta = filedialog.askdirectory(
+            parent=self, title="Selecione a pasta que contém as fichas HTML"
+        )
+        if not pasta:
+            return
+        try:
+            fichas, erros = ler_pasta_fichas(pasta)
+        except Exception as exc:
+            messagebox.showerror("Fichas HTML", str(exc), parent=self)
+            return
+        if not fichas:
+            detalhe = f"\n\n{erros[0]}" if erros else ""
+            messagebox.showerror(
+                "Fichas HTML",
+                f"Nenhuma ficha HTML válida foi encontrada.{detalhe}",
+                parent=self,
+            )
+            return
+
+        self.fichas_sei = fichas
+        self.sei_folder_var.set(f"{len(fichas)} fichas — {Path(pasta).name}")
+        self._log(f"[SEI] Pasta selecionada: {pasta}")
+        self._log(f"[SEI] {len(fichas)} fichas válidas encontradas.")
+        for ficha in fichas[:10]:
+            self._log(f"   - {ficha.codigo}: {ficha.nome}")
+        if len(fichas) > 10:
+            self._log(f"   ... e mais {len(fichas) - 10} fichas")
+        for erro in erros:
+            self._log(f"[AVISO] Ignorada: {erro}")
+        self._validate_ready()
+
+    def on_load_fichas_sei(self):
+        if not self.driver:
+            messagebox.showerror("Navegador", "Abra o SEI primeiro.", parent=self)
+            return
+        if not self.fichas_sei:
+            messagebox.showerror("Fichas", "Selecione uma pasta com fichas HTML.", parent=self)
+            return
+
+        total = len(self.fichas_sei)
+        confirmar = messagebox.askyesno(
+            "Confirmar carga no SEI",
+            f"Serão verificadas {total} fichas no processo atualmente aberto no SEI.\n\n"
+            "Uma ficha nova será criada; uma ficha alterada será atualizada no próprio "
+            "documento; uma ficha idêntica será mantida sem alterações.\n"
+            "Nenhum documento será excluído.\n\n"
+            "Descrição: Ficha de Componente Curricular - NOME\n"
+            "Número: CÓDIGO\n"
+            "Nome na Árvore: NOME\n"
+            "Nível de acesso: Público\n\n"
+            "O lote para no primeiro erro. Confirme que está no processo correto. Continuar?",
+            parent=self,
+        )
+        if not confirmar:
+            return
+
+        fichas = list(self.fichas_sei)
+        self._set_sei_running(True)
+
+        def _run():
+            try:
+                self._log(f"[SEI] Iniciando carga de {len(fichas)} fichas...")
+                automacao = AutomacaoSEI(self.driver, self._log)
+                concluidas, erros = automacao.carregar_lote(fichas)
+                stats = automacao.estatisticas
+                resumo = (
+                    f"{stats[STATUS_CRIADA]} criada(s), "
+                    f"{stats[STATUS_ATUALIZADA]} atualizada(s) e "
+                    f"{stats[STATUS_SEM_ALTERACAO]} sem alteração"
+                )
+                self._log(
+                    f"[SEI] Carga encerrada: {concluidas}/{len(fichas)} verificadas — {resumo}."
+                )
+                if erros:
+                    erro = erros[0]
+                    self._log(f"[SEI] Primeira falha: {erro}")
+                    self.after(
+                        0,
+                        lambda: messagebox.showerror(
+                            "Carga interrompida",
+                            f"{concluidas} ficha(s) verificada(s): {resumo}.\n\n{erro}",
+                            parent=self,
+                        ),
+                    )
+                else:
+                    self.after(
+                        0,
+                        lambda: messagebox.showinfo(
+                            "Carga concluída",
+                            f"As {concluidas} fichas foram verificadas.\n\n{resumo.capitalize()}.",
+                            parent=self,
+                        ),
+                    )
+            except Exception as exc:
+                self._log(f"[ERRO] Falha inesperada na carga do SEI: {exc}")
+            finally:
+                self.after(0, lambda: self._set_sei_running(False))
+
         threading.Thread(target=_run, daemon=True).start()
 
     def on_load_json(self):
@@ -250,9 +428,12 @@ class App(Tk):
         def _run():
             try:
                 self._log("Iniciando preenchimento visual...")
-                ok, fail = fill_entries(self.driver, self.value_map, self._log)
+                ok, fail, skipped = fill_entries(self.driver, self.value_map, self._log)
                 try_click_save(self.driver, self._log)
-                self._log(f"Preenchimento concluído: {ok} ok, {fail} não encontrado.")
+                self._log(
+                    f"Preenchimento concluído: {ok} ok, {fail} não encontrado, "
+                    f"{skipped} já preenchido."
+                )
             except Exception as e:
                 self._log(f"[ERRO] Falha no preenchimento: {e}")
 

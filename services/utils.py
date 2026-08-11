@@ -5,6 +5,7 @@ from typing import Dict, Tuple
 
 # URL inicial do portal (ajuste conforme necessário)
 GET_URL = "https://www.portaldocente.ufu.br"  # TODO: coloque a URL de entrada correta do portal UFU
+SEI_URL = "https://sei.ufu.br"
 
 DADOS_DEFAULT_PATH = Path("assets/dados_exemplo.json")
 OUT_DIR = Path("out_portal")
