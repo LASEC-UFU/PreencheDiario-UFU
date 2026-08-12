@@ -72,6 +72,32 @@ com fallback para o nome do arquivo. O código é a identidade da ficha no proce
 existam dois documentos com o mesmo código, o lote é interrompido para que a duplicidade
 seja resolvida manualmente.
 
+## Extrair a árvore do processo (inventário de documentos)
+
+Também independente do preenchimento do Diário: com o processo já aberto no SEI, o botão
+**Extrair árvore do processo** (no mesmo painel de SEI) percorre todos os documentos da
+árvore — abrindo todas as pastas primeiro, como no fluxo de fichas — e monta um inventário
+no estilo da seção "I. RELATÓRIO" de um parecer:
+
+```
+1. RELATÓRIO Nº 11/2025/DIREN/PROGRAD/REITO (6616433), de 25 de agosto de 2025 – que trata
+   da revisão e atualização das Resoluções CONGRAD nº 13/2019 e nº 39/2022...
+2. Portaria de Pessoal (6616993)
+```
+
+Para cada documento, o app abre seu conteúdo e tenta ler, do texto visível:
+- **tipo e número**, pela linha que começa com um tipo de documento comum em processos SEI
+  (Ofício, Memorando, Despacho, Parecer, Resolução, Portaria, Relatório, Ata, etc.);
+- **código SEI** (verificador), pelo texto "código verificador NNNNNN" ou "SEI nº NNNNNN";
+- **data**, por extenso ou no formato DD/MM/AAAA;
+- **resumo**, o primeiro parágrafo substancial após o título.
+
+Esses campos são heurísticos — não existe um campo estruturado para eles na tela de
+visualização do SEI — então **revise tipo, código, data e resumo antes de usar em um
+parecer**. Ao final, o app pede onde salvar um arquivo `.txt` com o inventário formatado;
+documentos sem alguns campos aparecem só com o que foi encontrado (ex.: nome na árvore e
+código, sem data/resumo).
+
 ## Estrutura de pastas
 ```
 ufu_diario_preenchimento_visual/

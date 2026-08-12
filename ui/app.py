@@ -20,6 +20,7 @@ from services.sei import (
     STATUS_ATUALIZADA,
     STATUS_CRIADA,
     STATUS_SEM_ALTERACAO,
+    formatar_relatorio_arvore,
     ler_pasta_fichas,
 )
 
@@ -88,6 +89,13 @@ class App(Tk):
             state="disabled",
         )
         self.btn_load_sei.pack(side=RIGHT, padx=6, pady=6)
+        self.btn_extract_sei = Button(
+            sei,
+            text="Extrair árvore do processo",
+            command=self.on_extract_sei_tree,
+            state="disabled",
+        )
+        self.btn_extract_sei.pack(side=RIGHT, padx=6, pady=6)
 
         main = Frame(self); main.pack(side=TOP, fill=BOTH, expand=True)
         left = Frame(main, width=520); left.pack(side=LEFT, fill=BOTH, expand=True)
@@ -139,6 +147,8 @@ class App(Tk):
         self.btn_fill.configure(state=("normal" if ready else "disabled"))
         ready_sei = (self.driver is not None) and bool(self.fichas_sei) and not self.sei_running
         self.btn_load_sei.configure(state=("normal" if ready_sei else "disabled"))
+        ready_extract = (self.driver is not None) and not self.sei_running
+        self.btn_extract_sei.configure(state=("normal" if ready_extract else "disabled"))
 
     def _set_sei_running(self, running: bool):
         self.sei_running = running
@@ -301,6 +311,73 @@ class App(Tk):
                     )
             except Exception as exc:
                 self._log(f"[ERRO] Falha inesperada na carga do SEI: {exc}")
+            finally:
+                self.after(0, lambda: self._set_sei_running(False))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def on_extract_sei_tree(self):
+        if not self.driver:
+            messagebox.showerror(
+                "Navegador", "Abra o SEI primeiro e entre no processo desejado.", parent=self
+            )
+            return
+        confirmar = messagebox.askyesno(
+            "Extrair árvore do processo",
+            "Isso vai navegar por todos os documentos do processo atualmente aberto no "
+            "SEI para montar um inventário (tipo, código SEI, data e um trecho de resumo "
+            "de cada um). Pode demorar em processos grandes.\n\n"
+            "Os campos são lidos de forma heurística e devem ser revisados antes de usar "
+            "em um parecer. Confirme que está no processo correto. Continuar?",
+            parent=self,
+        )
+        if not confirmar:
+            return
+
+        self._set_sei_running(True)
+
+        def _run():
+            try:
+                self._log("[SEI] Extraindo a árvore do processo...")
+                automacao = AutomacaoSEI(self.driver, self._log)
+
+                def progresso(indice: int, total: int, nome: str):
+                    self._log(f"[SEI] {indice}/{total} — {nome}")
+
+                documentos = automacao.extrair_arvore_processo(progresso=progresso)
+                texto = formatar_relatorio_arvore(documentos)
+                self._log(f"[SEI] {len(documentos)} documento(s) encontrados na árvore.")
+
+                def _salvar():
+                    caminho = filedialog.asksaveasfilename(
+                        parent=self,
+                        title="Salvar inventário da árvore do processo",
+                        defaultextension=".txt",
+                        filetypes=[("Texto", "*.txt")],
+                        initialfile="relatorio_arvore_sei.txt",
+                    )
+                    if not caminho:
+                        return
+                    try:
+                        Path(caminho).write_text(texto, encoding="utf-8")
+                        self._log(f"[SEI] Inventário salvo em: {caminho}")
+                        messagebox.showinfo(
+                            "Extração concluída",
+                            f"{len(documentos)} documento(s) salvos em:\n{caminho}\n\n"
+                            "Revise tipo, código, data e resumo antes de usar no parecer.",
+                            parent=self,
+                        )
+                    except Exception as exc:
+                        self._log(f"[ERRO] Falha ao salvar o inventário: {exc}")
+                        messagebox.showerror("Salvar inventário", str(exc), parent=self)
+
+                self.after(0, _salvar)
+            except Exception as exc:
+                self._log(f"[ERRO] Falha ao extrair a árvore do processo: {exc}")
+                self.after(
+                    0,
+                    lambda: messagebox.showerror("Extração da árvore", str(exc), parent=self),
+                )
             finally:
                 self.after(0, lambda: self._set_sei_running(False))
 

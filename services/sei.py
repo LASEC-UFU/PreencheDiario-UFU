@@ -36,6 +36,102 @@ def truncar_nome_arvore(nome: str, limite: int = LIMITE_NOME_ARVORE) -> str:
     return trecho
 
 
+_MESES_PT = (
+    "janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|"
+    "outubro|novembro|dezembro"
+)
+_PADRAO_CODIGO_VERIFICADOR = re.compile(
+    r"c[oó]digo verificador\s*[:\-]?\s*(\d{4,})", re.IGNORECASE
+)
+_PADRAO_SEI_NUMERO = re.compile(r"SEI\s*n[ºo°]?\s*(\d{4,})", re.IGNORECASE)
+_PADRAO_DATA_EXTENSO = re.compile(
+    rf"\d{{1,2}}\s+de\s+(?:{_MESES_PT})\s+de\s+\d{{4}}", re.IGNORECASE
+)
+_PADRAO_DATA_CURTA = re.compile(r"\b\d{2}/\d{2}/\d{4}\b")
+_TIPOS_DOCUMENTO_SEI = (
+    r"OF[IÍ]CIO|MEMORANDO|DESPACHO|PARECER|RESOLU[ÇC][AÃ]O|PORTARIA|RELAT[OÓ]RIO|"
+    r"ATA|DECIS[AÃ]O|NOTA T[EÉ]CNICA|MINUTA(?: DE RESOLU[ÇC][AÃ]O)?|CERTID[AÃ]O|"
+    r"DECRETO|EDITAL|INSTRU[ÇC][AÃ]O NORMATIVA|CONTRATO|CONV[EÊ]NIO"
+)
+_PADRAO_TIPO_NUMERO = re.compile(rf"^(?:{_TIPOS_DOCUMENTO_SEI})\b.*", re.IGNORECASE)
+
+
+def extrair_codigo_sei(texto: str) -> str:
+    """Busca o código verificador SEI no texto visível de um documento."""
+    encontrado = _PADRAO_CODIGO_VERIFICADOR.search(texto or "") or _PADRAO_SEI_NUMERO.search(
+        texto or ""
+    )
+    return encontrado.group(1) if encontrado else ""
+
+
+def extrair_data(texto: str) -> str:
+    """Busca a primeira data (por extenso ou DD/MM/AAAA) no texto do documento."""
+    encontrado = _PADRAO_DATA_EXTENSO.search(texto or "") or _PADRAO_DATA_CURTA.search(
+        texto or ""
+    )
+    return encontrado.group(0) if encontrado else ""
+
+
+def extrair_tipo_numero(texto: str) -> str:
+    """Retorna a linha que identifica o tipo e o número do documento.
+
+    A tela de visualização do SEI não expõe um campo estruturado para tipo e
+    número, e o cabeçalho institucional (nome da universidade, endereço) também
+    aparece em maiúsculas antes do título. Por isso a busca usa os tipos de
+    documento comuns em processos SEI para achar a linha certa, em vez de só
+    procurar a primeira linha em maiúsculas.
+    """
+    for linha in (texto or "").splitlines():
+        linha = linha.strip()
+        if _PADRAO_TIPO_NUMERO.match(linha):
+            return linha
+    return ""
+
+
+def extrair_resumo(texto: str, tipo_numero: str = "", limite: int = 220) -> str:
+    """Aproxima o resumo pelo primeiro parágrafo substancial após o título."""
+    linhas = [linha.strip() for linha in (texto or "").splitlines() if linha.strip()]
+    depois_do_titulo = not tipo_numero
+    for linha in linhas:
+        if not depois_do_titulo:
+            if linha == tipo_numero:
+                depois_do_titulo = True
+            continue
+        if len(linha) < 40:
+            continue
+        return (linha[:limite].rstrip() + "…") if len(linha) > limite else linha
+    return ""
+
+
+@dataclass(frozen=True)
+class DocumentoArvore:
+    """Um documento identificado na árvore do processo do SEI."""
+
+    ordem: int
+    nome_arvore: str
+    codigo_sei: str
+    tipo_numero: str
+    data: str
+    resumo: str
+    href: str = ""
+
+
+def formatar_relatorio_arvore(documentos: Iterable[DocumentoArvore]) -> str:
+    """Formata o inventário de documentos no estilo de um relatório de parecer.
+
+    Os campos são heurísticos (lidos do texto visível de cada documento);
+    revise tipo, código, data e resumo antes de usar em um parecer real.
+    """
+    linhas = []
+    for documento in documentos:
+        identificacao = documento.tipo_numero or documento.nome_arvore
+        codigo = f" ({documento.codigo_sei})" if documento.codigo_sei else ""
+        data = f", de {documento.data}" if documento.data else ""
+        resumo = f" – {documento.resumo}" if documento.resumo else ""
+        linhas.append(f"{documento.ordem}. {identificacao}{codigo}{data}{resumo}")
+    return "\n".join(linhas)
+
+
 @dataclass(frozen=True)
 class FichaDisciplina:
     caminho: Path
@@ -399,6 +495,142 @@ return achados.sort((a, b) => b.pontos - a.pontos);
             elemento,
         )
         self.driver.switch_to.default_content()
+
+    def _listar_nos_documento(self) -> list[dict]:
+        """Lista, na ordem da árvore, todos os nós que representam documentos.
+
+        Guarda apenas identificadores (texto/href/id), nunca o elemento do DOM:
+        o elemento pertence ao frame da árvore e fica inválido assim que o
+        código troca de frame para ler o documento selecionado. Cada nó é
+        relocalizado sob demanda por ``_selecionar_no_arvore`` no momento do
+        clique.
+        """
+        script = r"""
+const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+const candidatos = Array.from(document.querySelectorAll('a[href], a[id^="anchor"]'));
+const vistos = new Set();
+const resultado = [];
+for (const link of candidatos) {
+  const href = link.getAttribute('href') || '';
+  const id = link.id || '';
+  const target = link.getAttribute('target') || '';
+  const ehDocumento = href.includes('documento_visualizar') ||
+    /visualizacao/i.test(target) || /^anchor\d+$/i.test(id);
+  if (!ehDocumento) continue;
+  const chave = href + '|' + id;
+  if (vistos.has(chave)) continue;
+  vistos.add(chave);
+  const texto = norm([link.textContent, link.title, link.getAttribute('aria-label')]
+    .filter(Boolean).join(' '));
+  if (!texto) continue;
+  resultado.push({texto, titulo: norm(link.title || ''), href, id});
+}
+return resultado;
+"""
+        return self._achar(script) or []
+
+    def _selecionar_no_arvore(self, href: str, id_: str) -> bool:
+        """Relocaliza e clica no nó da árvore com o href/id indicados.
+
+        A busca e o clique acontecem na mesma chamada de script, dentro do
+        frame em que ``_achar`` encontrou o elemento, evitando o uso de uma
+        referência de elemento capturada em outro momento/frame.
+        """
+        script = r"""
+const href = arguments[0], id = arguments[1];
+const candidatos = document.querySelectorAll('a[href], a[id^="anchor"]');
+for (const link of candidatos) {
+  if ((link.getAttribute('href') || '') !== href || (link.id || '') !== id) continue;
+  link.scrollIntoView({block:'center'});
+  link.click();
+  return true;
+}
+return false;
+"""
+        resultado = self._achar(script, href, id_)
+        self.driver.switch_to.default_content()
+        return bool(resultado)
+
+    def _ler_texto_documento_atual(self) -> Optional[dict]:
+        """Lê o texto visível do documento atualmente exibido na tela.
+
+        Retorna ``None`` para frames com pouco texto (menus, cabeçalhos), de
+        forma a deixar a busca recursiva em ``_achar`` continuar até achar o
+        frame que realmente contém o conteúdo do documento.
+        """
+        script = r"""
+const corpo = document.body;
+if (!corpo) return null;
+const texto = (corpo.innerText || '').replace(/[ \t]+/g, ' ').trim();
+if (texto.length < 80) return null;
+return {texto};
+"""
+        return self._achar(script)
+
+    def extrair_arvore_processo(
+        self,
+        *,
+        capturar_conteudo: bool = True,
+        progresso: Optional[Callable[[int, int, str], None]] = None,
+    ) -> list[DocumentoArvore]:
+        """Percorre a árvore do processo aberto e monta um inventário dos documentos.
+
+        Os campos código/tipo/data/resumo de cada item são heurísticos, lidos
+        do texto visível de cada documento (não há campos estruturados
+        disponíveis na tela de visualização do SEI); revise o resultado antes
+        de usar em um parecer.
+        """
+        if not self.driver.window_handles:
+            raise RuntimeError("o navegador foi fechado")
+        janela_principal = self.driver.current_window_handle
+        self.driver.switch_to.default_content()
+        self._abrir_todas_pastas()
+
+        nos = self._listar_nos_documento()
+        if not nos:
+            raise RuntimeError("nenhum documento foi encontrado na árvore do processo")
+
+        documentos: list[DocumentoArvore] = []
+        total = len(nos)
+        for indice, no in enumerate(nos, start=1):
+            nome_arvore = no.get("texto", "").strip()
+            if progresso:
+                progresso(indice, total, nome_arvore)
+
+            self.driver.switch_to.window(janela_principal)
+            self.driver.switch_to.default_content()
+            texto_documento = ""
+            if capturar_conteudo:
+                try:
+                    if not self._selecionar_no_arvore(no.get("href", ""), no.get("id", "")):
+                        raise RuntimeError("não foi possível localizar o documento na árvore")
+                    info = self._esperar(
+                        self._ler_texto_documento_atual,
+                        "o conteúdo do documento",
+                        timeout=10,
+                    )
+                    texto_documento = info.get("texto", "")
+                except Exception as exc:
+                    # Um documento problemático (bloqueado, com erro do SEI, etc.) não
+                    # deve interromper o inventário dos demais — é leitura, não escrita.
+                    self.log(f"   aviso: não foi possível ler '{nome_arvore}' ({exc})")
+
+            tipo_numero = extrair_tipo_numero(texto_documento)
+            documentos.append(
+                DocumentoArvore(
+                    ordem=indice,
+                    nome_arvore=nome_arvore,
+                    codigo_sei=extrair_codigo_sei(texto_documento),
+                    tipo_numero=tipo_numero,
+                    data=extrair_data(texto_documento),
+                    resumo=extrair_resumo(texto_documento, tipo_numero),
+                    href=no.get("href", ""),
+                )
+            )
+
+        self.driver.switch_to.window(janela_principal)
+        self.driver.switch_to.default_content()
+        return documentos
 
     @staticmethod
     def _nome_arvore_corresponde(documento: dict, ficha: FichaDisciplina) -> bool:
