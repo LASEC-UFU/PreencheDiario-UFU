@@ -48,29 +48,26 @@ Esse fluxo é independente do preenchimento do Diário:
 3. Clique **Selecionar pasta de fichas** e escolha a pasta que contém os arquivos `.html`.
    Subpastas (como uma pasta de capturas chamada `Fichas`) não são processadas.
 4. Confira no log os códigos e nomes reconhecidos e clique **Carregar fichas no processo**.
-5. Confirme o processo. Para cada arquivo, o aplicativo procura primeiro uma ficha com o
+5. Confirme o processo. Para cada arquivo, o aplicativo procura todas as fichas com o
    mesmo **código** no campo Número. Em processos divididos, todas as pastas da árvore são
    carregadas antes da busca. Então:
-   - antes de escrever, faz uma pré-varredura e interrompe sem alterações se encontrar
-     códigos duplicados nos arquivos ou no processo;
+   - antes de escrever, faz uma pré-varredura do processo;
    - se não encontrar, abre **Incluir/Gerar Documento**;
-   - se encontrar, compara o HTML atual com o arquivo selecionado;
-   - se o conteúdo for idêntico, não altera o documento;
-   - se houver mudança, atualiza o próprio documento existente;
-   - se a edição estiver bloqueada, interrompe o lote sem excluir ou criar outra cópia;
+   - se encontrar uma ou mais versões, abre cada ficha e compara seu HTML com o arquivo;
+   - se alguma versão for idêntica, não insere nem altera documento algum;
+   - se houver ao menos uma diferença e nenhuma versão for idêntica, cria outra ficha;
    - seleciona **Ficha de Componente Curricular**;
    - preenche **Descrição** com `Ficha de Componente Curricular - NOME`;
    - preenche **Número** com o código e **Nome na Árvore** com o nome, truncado em um
      limite de 50 caracteres sem cortar palavras quando necessário;
    - mantém o nível de acesso **Público**;
    - abre a tela `editor_montar`, substitui o modelo pelo HTML completo da ficha e salva.
-6. Ao terminar, faz uma nova varredura e confirma que cada código selecionado aparece uma
-   única vez no processo.
+6. Ao terminar, faz uma nova varredura e confirma que cada código selecionado aparece no
+   processo. Mais de uma ocorrência é permitida, pois elas representam versões diferentes.
 
 O código e o nome são lidos do conteúdo da ficha (`CÓDIGO` e `COMPONENTE CURRICULAR`),
-com fallback para o nome do arquivo. O código é a identidade da ficha no processo. Caso já
-existam dois documentos com o mesmo código, o lote é interrompido para que a duplicidade
-seja resolvida manualmente.
+com fallback para o nome do arquivo. O código agrupa as versões da mesma disciplina; o
+conteúdo determina se a versão já existe.
 
 ## Extrair a árvore do processo (inventário de documentos)
 

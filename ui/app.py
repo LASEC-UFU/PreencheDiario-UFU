@@ -17,7 +17,6 @@ from services.diario import fill_entries, try_click_save
 from services.sei import (
     AutomacaoSEI,
     FichaDisciplina,
-    STATUS_ATUALIZADA,
     STATUS_CRIADA,
     STATUS_SEM_ALTERACAO,
     formatar_relatorio_arvore,
@@ -259,8 +258,8 @@ class App(Tk):
         confirmar = messagebox.askyesno(
             "Confirmar carga no SEI",
             f"Serão verificadas {total} fichas no processo atualmente aberto no SEI.\n\n"
-            "Uma ficha nova será criada; uma ficha alterada será atualizada no próprio "
-            "documento; uma ficha idêntica será mantida sem alterações.\n"
+            "Uma ficha idêntica será mantida sem alterações. Se qualquer informação "
+            "for diferente, uma nova ficha será criada sem alterar as anteriores.\n"
             "Nenhum documento será excluído.\n\n"
             "Descrição: Ficha de Componente Curricular - NOME\n"
             "Número: CÓDIGO\n"
@@ -283,7 +282,6 @@ class App(Tk):
                 stats = automacao.estatisticas
                 resumo = (
                     f"{stats[STATUS_CRIADA]} criada(s), "
-                    f"{stats[STATUS_ATUALIZADA]} atualizada(s) e "
                     f"{stats[STATUS_SEM_ALTERACAO]} sem alteração"
                 )
                 self._log(

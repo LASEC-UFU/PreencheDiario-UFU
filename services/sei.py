@@ -23,6 +23,8 @@ LIMITE_NOME_ARVORE = 50
 STATUS_CRIADA = "criada"
 STATUS_ATUALIZADA = "atualizada"
 STATUS_SEM_ALTERACAO = "sem_alteracao"
+TIMEOUT_CONTEUDO_DOCUMENTO = 40.0
+TENTATIVAS_CONTEUDO_DOCUMENTO = 2
 
 
 def truncar_nome_arvore(nome: str, limite: int = LIMITE_NOME_ARVORE) -> str:
@@ -469,32 +471,37 @@ for (const link of candidatos) {
   if (texto.includes(tipo)) pontos += 20;
   const palavrasNome = nome.trim().split(/\s+/).filter(p => p.length > 2).slice(0, 4);
   pontos += palavrasNome.filter(p => texto.includes(' ' + p + ' ')).length;
-  achados.push({element: link, texto: texto.trim(), href, pontos});
+  // Nao devolva o WebElement ao Python. A arvore do SEI e atualizada de
+  // forma assincrona e qualquer referencia guardada aqui pode ficar stale
+  // antes da comparacao. href/id sao relocalizados no instante do clique.
+  // Uma ficha cancelada ainda fica visivel na arvore e pode ter o mesmo
+  // numero de uma nova versao. O estado costuma estar no titulo/classe do
+  // proprio no (ou de seu item de lista), nao necessariamente no texto.
+  const item = link.closest('li');
+  const estado = [
+    textoOriginal, link.className, link.getAttribute('data-status'),
+    link.parentElement && link.parentElement.textContent,
+    item && item.className, item && item.title, item && item.getAttribute('data-status')
+  ].filter(Boolean).join(' ');
+  const cancelado = /\bcancelad[oa]\b/i.test(estado);
+  achados.push({texto: texto.trim(), href, id, pontos, cancelado});
 }
 return achados.sort((a, b) => b.pontos - a.pontos);
 """
         return self._achar(script, ficha.codigo, TIPO_DOCUMENTO, ficha.nome) or []
 
-    def _localizar_documento_existente(self, ficha: FichaDisciplina) -> Optional[dict]:
-        achados = self._localizar_documentos_existentes(ficha)
-        if not achados:
-            return None
-        if len(achados) > 1:
-            raise RuntimeError(
-                f"foram encontrados {len(achados)} documentos com o código "
-                f"'{ficha.codigo}'; remova a duplicidade manualmente"
-            )
-        return achados[0]
+    @staticmethod
+    def _documento_cancelado(documento: dict) -> bool:
+        """Indica se o no da arvore representa um documento cancelado."""
+        if documento.get("cancelado"):
+            return True
+        # Mantem compatibilidade com arvores antigas, nas quais o marcador
+        # vinha somente junto do texto do no.
+        return bool(re.search(r"\bcancelad[oa]\b", documento.get("texto", ""), re.I))
 
-    def _selecionar_documento(self, documento: dict) -> None:
-        elemento = documento.get("element")
-        if not elemento:
-            raise RuntimeError("o documento existente nao possui link selecionavel")
-        self.driver.execute_script(
-            "arguments[0].scrollIntoView({block:'center'}); arguments[0].click();",
-            elemento,
-        )
-        self.driver.switch_to.default_content()
+    def _documentos_ativos(self, documentos: Iterable[dict]) -> list[dict]:
+        """Remove versoes canceladas: elas nao devem ser comparadas nem reutilizadas."""
+        return [doc for doc in documentos if not self._documento_cancelado(doc)]
 
     def _listar_nos_documento(self) -> list[dict]:
         """Lista, na ordem da árvore, todos os nós que representam documentos.
@@ -640,7 +647,8 @@ return {texto};
 
         return normalizar(ficha.nome_arvore) in normalizar(documento.get("texto", ""))
 
-    def _achar_acao_documento(self, acao: str):
+    def _clicar_acao_documento(self, acao: str) -> bool:
+        """Relocaliza e clica uma acao sem conservar um WebElement do SEI."""
         script = r"""
 const desejada = arguments[0];
 const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -656,22 +664,27 @@ for (const el of document.querySelectorAll('a[href],button,input[type=button],in
   ].filter(Boolean).join(' '));
   if (desejada === 'editar' &&
       (href.includes('documento_editar_conteudo') || onclick.includes('editarconteudo') ||
-       texto.includes('editar conteudo'))) return el;
+       texto.includes('editar conteudo'))) {
+    el.click();
+    return true;
+  }
   if (desejada === 'alterar' &&
       (href.includes('documento_alterar') || texto.includes('consultar alterar documento') ||
-       texto.includes('alterar documento'))) return el;
+       texto.includes('alterar documento'))) {
+    el.click();
+    return true;
+  }
 }
-return null;
+return false;
 """
-        return self._achar(script, acao)
+        return bool(self._achar(script, acao))
 
     def _atualizar_metadados_existente(self, ficha: FichaDisciplina) -> None:
-        acao = self._esperar(
-            lambda: self._achar_acao_documento("alterar"),
+        self._esperar(
+            lambda: self._clicar_acao_documento("alterar"),
             "a ação Consultar/Alterar Documento",
             timeout=7,
         )
-        self.driver.execute_script("arguments[0].click();", acao)
         self._esperar(
             self._esta_no_formulario_metadados,
             "o formulário de metadados do documento",
@@ -684,14 +697,13 @@ return null;
 
     def _abrir_editor_existente(self, janela_principal: str):
         try:
-            acao = self._esperar(
-                lambda: self._achar_acao_documento("editar"),
+            self._esperar(
+                lambda: self._clicar_acao_documento("editar"),
                 "a acao Editar Conteudo",
                 timeout=7,
             )
         except RuntimeError:
             return None
-        self.driver.execute_script("arguments[0].click();", acao)
         return self._esperar(
             lambda: self._achar_editor(janela_principal),
             "o editor do documento existente",
@@ -713,23 +725,68 @@ return infra.editor.getData({rootName:arguments[0]});
             if conteudo is None:
                 raise RuntimeError("nao foi possivel ler o conteudo atual do CKEditor")
             return str(conteudo), "conteudo"
-        textarea = editor_info["element"]
-        conteudo = self.driver.execute_script("return arguments[0].value || '';", textarea)
-        return str(conteudo or ""), "documento"
+        resultado = self._achar(
+            r"""
+const info = arguments[0];
+const textarea = (info.id && document.getElementById(info.id)) ||
+  (info.name && Array.from(document.querySelectorAll('textarea'))
+    .find(el => el.name === info.name));
+return textarea ? {encontrada:true, conteudo:textarea.value || ''} : null;
+""",
+            editor_info,
+        )
+        if not resultado:
+            raise RuntimeError("nao foi possivel relocalizar o HTML do editor")
+        return str(resultado.get("conteudo", "")), "documento"
 
-    def _ler_documento_visualizado(self, ficha: FichaDisciplina) -> Optional[str]:
+    def _ler_documento_visualizado(
+        self, ficha: FichaDisciplina, href_esperado: str = ""
+    ) -> Optional[str]:
         """Le o HTML renderizado quando o SEI nao oferece a acao de edicao."""
         script = r"""
 const norm = s => (' ' + (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .toUpperCase().replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim() + ' ');
+if (document.readyState !== 'complete') return null;
+const hrefEsperado = arguments[1] || '';
+let idConfirmadoPelaUrl = false;
+if (hrefEsperado) {
+  try {
+    const alvo = new URL(hrefEsperado, location.href);
+    const idAlvo = alvo.searchParams.get('id_documento');
+    // O HTML da ficha costuma ficar em um iframe filho. Nesse iframe a URL
+    // pode nao conter id_documento, embora a URL do frame pai contenha. Subir
+    // pela cadeia confirma o documento certo sem rejeitar o conteudo interno.
+    if (idAlvo) {
+      let janela = window;
+      for (let nivel = 0; nivel < 8; nivel++) {
+        const idFrame = new URL(janela.location.href, location.href)
+          .searchParams.get('id_documento');
+        if (idFrame) {
+          // Evita comparar a versao anterior enquanto o frame ainda navega.
+          if (idFrame !== idAlvo) return null;
+          idConfirmadoPelaUrl = true;
+          break;
+        }
+        if (janela === janela.parent) break;
+        janela = janela.parent;
+      }
+    }
+  } catch (_) {}
+}
 const texto = norm(document.body && document.body.innerText);
 const codigo = norm(arguments[0]);
-if (!texto.includes(' FICHA DE COMPONENTE CURRICULAR ') || !texto.includes(codigo)) return null;
+// Quando a cadeia de frames ja confirmou o id_documento, o SEI pode omitir
+// tanto o titulo quanto o numero no HTML interno. Sem essa confirmacao pela
+// URL, mantenha as duas exigencias para nao capturar outro frame da pagina.
+if (!idConfirmadoPelaUrl &&
+    (!texto.includes(' FICHA DE COMPONENTE CURRICULAR ') || !texto.includes(codigo))) {
+  return null;
+}
 if (document.querySelector('#txtDescricao,#txtNomeArvore')) return null;
 if (!document.querySelector('table') || texto.length < 200) return null;
 return document.documentElement.outerHTML;
 """
-        return self._achar(script, ficha.codigo)
+        return self._achar(script, ficha.codigo, href_esperado)
 
     @staticmethod
     def _conteudo_visual_comparavel(html: str) -> str:
@@ -738,6 +795,96 @@ return document.documentElement.outerHTML;
             return _extrair_conteudo_editor(soup)
         except ValueError:
             return html
+
+    def _aguardar_conteudo_visualizado(
+        self,
+        ficha: FichaDisciplina,
+        href: str,
+        id_: str,
+        janela_principal: str,
+    ) -> str:
+        """Aguarda o frame lento do SEI e o reabre uma vez se necessario."""
+        timeout = max(TIMEOUT_CONTEUDO_DOCUMENTO, self.timeout)
+        ultimo_erro: Optional[RuntimeError] = None
+        for tentativa in range(1, TENTATIVAS_CONTEUDO_DOCUMENTO + 1):
+            try:
+                return self._esperar(
+                    lambda: self._ler_documento_visualizado(ficha, href),
+                    "o conteudo da ficha existente para comparacao",
+                    timeout=timeout,
+                )
+            except RuntimeError as exc:
+                ultimo_erro = exc
+                if tentativa >= TENTATIVAS_CONTEUDO_DOCUMENTO:
+                    break
+                self.log(
+                    "   a visualizacao demorou; relocalizando a ficha e tentando novamente"
+                )
+                self.driver.switch_to.window(janela_principal)
+                self.driver.switch_to.default_content()
+                if not self._selecionar_no_arvore(href, id_):
+                    raise RuntimeError(
+                        "a ficha deixou de aparecer na arvore durante a comparacao"
+                    ) from exc
+
+        raise RuntimeError(
+            "tempo esgotado aguardando o conteudo da ficha existente para comparacao "
+            f"apos {TENTATIVAS_CONTEUDO_DOCUMENTO} tentativas de ate "
+            f"{timeout:g} segundos"
+        ) from ultimo_erro
+
+    def _documento_corresponde_ficha(
+        self, documento: dict, ficha: FichaDisciplina
+    ) -> bool:
+        """Abre uma versao existente e compara metadados e conteudo."""
+        # O nome na arvore faz parte da identidade da versao. Se ele mudou,
+        # ja existe uma diferenca suficiente para criar outra ficha; nao e
+        # necessario abrir/ler o documento antigo (que pode estar bloqueado).
+        if not self._nome_arvore_corresponde(documento, ficha):
+            self.log("   nome diferente na versao existente")
+            return False
+
+        janela_principal = self.driver.current_window_handle
+        href = documento.get("href", "")
+        id_ = documento.get("id", "")
+        if not self._selecionar_no_arvore(href, id_):
+            raise RuntimeError("não foi possível abrir uma ficha existente na árvore")
+
+        # Para documentos editaveis, o editor fornece exatamente o HTML salvo
+        # no SEI e e a fonte mais confiavel para a comparacao. Nada e alterado
+        # ou salvo: o editor e aberto somente para leitura e fechado em seguida.
+        editor_existente = self._abrir_editor_existente(janela_principal)
+        if editor_existente:
+            editor_info, janela_editor = editor_existente
+            try:
+                atual, formato = self._ler_conteudo_editor(editor_info, janela_editor)
+                novo = ficha.conteudo_editor if formato == "conteudo" else ficha.html
+                return html_equivalente(atual, novo)
+            finally:
+                if janela_editor != janela_principal:
+                    self._finalizar_janela_editor(janela_editor, janela_principal)
+                else:
+                    # Algumas versoes do SEI abrem o editor na mesma aba.
+                    # Volta para o processo sem submeter o formulario.
+                    self.driver.back()
+                    self._esperar(
+                        lambda: not self._achar_editor(janela_principal),
+                        "o retorno do editor para o processo",
+                        timeout=10,
+                    )
+                    self.driver.switch_to.window(janela_principal)
+                    self.driver.switch_to.default_content()
+
+        # Documentos assinados/bloqueados podem nao oferecer Editar Conteudo.
+        # Neles, usa a representacao renderizada apenas como alternativa.
+        visualizado = self._aguardar_conteudo_visualizado(
+            ficha,
+            href,
+            id_,
+            janela_principal,
+        )
+        conteudo_atual = self._conteudo_visual_comparavel(visualizado)
+        return html_equivalente(conteudo_atual, ficha.conteudo_editor)
 
     def _clicar_incluir_documento(self) -> None:
         script = r"""
@@ -918,7 +1065,7 @@ if (window.infraEditor && window.infraEditor.isReady && window.infraEditor.edito
 const textarea = document.querySelector(
   'textarea[name^="txaEditor_"], textarea[id^="txaEditor_"]'
 );
-return textarea ? {kind:'textarea', element:textarea} : null;
+return textarea ? {kind:'textarea', id:textarea.id || '', name:textarea.name || ''} : null;
 """
         for handle in list(self.driver.window_handles):
             try:
@@ -943,7 +1090,7 @@ return textarea ? {kind:'textarea', element:textarea} : null;
         self.driver.switch_to.window(janela_editor)
         self.driver.switch_to.default_content()
         raiz = editor_info["rootName"]
-        resultado = self.driver.execute_script(
+        resultado = self._achar(
             r"""
 const html = arguments[0], rootName = arguments[1];
 const infra = window.infraEditor;
@@ -1030,22 +1177,25 @@ return !salvar.isSaving && !salvar.isDirty;
             self._finalizar_janela_editor(janela_editor, janela_principal)
             return
 
-        textarea = editor_info["element"]
         url_editor = self.driver.current_url
         # A URL editor_montar contém uma textarea txaEditor_*. O POST nativo
         # preserva o documento completo, inclusive <head>, CSS e imagens base64.
-        resultado = self.driver.execute_script(
+        resultado = self._achar(
             r"""
-const ta = arguments[0], html = arguments[1];
+const info = arguments[0], html = arguments[1];
+const ta = (info.id && document.getElementById(info.id)) ||
+  (info.name && Array.from(document.querySelectorAll('textarea'))
+    .find(el => el.name === info.name));
+if (!ta) return null;
 ta.value = html; ta.textContent = html;
 ta.dispatchEvent(new Event('input', {bubbles:true}));
 ta.dispatchEvent(new Event('change', {bubbles:true}));
 const form = ta.form || ta.closest('form');
 if (!form) return false;
 HTMLFormElement.prototype.submit.call(form);
-return true;
+return {enviado:true, timeOrigin:performance.timeOrigin};
 """,
-            textarea,
+            editor_info,
             ficha.html,
         )
         if not resultado:
@@ -1055,12 +1205,24 @@ return true;
             if janela_editor not in self.driver.window_handles:
                 return True
             self.driver.switch_to.window(janela_editor)
-            try:
-                # O elemento original fica stale quando o POST termina.
-                _ = textarea.tag_name
-            except Exception:
+            if self.driver.current_url != url_editor:
                 return True
-            return self.driver.current_url != url_editor
+            # O POST pode recarregar a mesma URL. Nesse caso o timeOrigin do
+            # frame do editor muda, sem depender de uma referencia stale para
+            # detectar que a navegacao terminou.
+            return bool(
+                self._achar(
+                    r"""
+const info = arguments[0];
+const textarea = (info.id && document.getElementById(info.id)) ||
+  (info.name && Array.from(document.querySelectorAll('textarea'))
+    .find(el => el.name === info.name));
+return textarea ? performance.timeOrigin !== arguments[1] : null;
+""",
+                    editor_info,
+                    resultado["timeOrigin"],
+                )
+            )
 
         self._esperar(envio_concluido, "a gravação do HTML no editor", timeout=20)
         time.sleep(0.5)
@@ -1122,82 +1284,50 @@ return true;
         self.driver.switch_to.window(janela_principal)
         self.driver.switch_to.default_content()
         self._abrir_todas_pastas()
-        documento = self._localizar_documento_existente(ficha)
-        if documento is None and houve_editor_remanescente:
+        documentos = self._localizar_documentos_existentes(ficha)
+        if not documentos and houve_editor_remanescente:
             try:
-                documento = self._esperar(
-                    lambda: self._localizar_documento_existente(ficha),
+                documentos = self._esperar(
+                    lambda: self._localizar_documentos_existentes(ficha),
                     "a atualização da árvore após fechar o editor anterior",
                     timeout=7,
                 )
             except RuntimeError:
-                documento = None
-        if documento is None:
+                documentos = []
+        canceladas = len(documentos) - len(self._documentos_ativos(documentos))
+        documentos = self._documentos_ativos(documentos)
+        if canceladas:
+            self.log(
+                f"   {canceladas} ficha(s) cancelada(s) localizada(s); "
+                "desconsiderando-as para inserir a nova ficha"
+            )
+        if not documentos:
             self.log("   ficha ainda não existe; criando documento")
             self._criar_ficha(ficha, janela_principal)
             return STATUS_CRIADA
 
-        self.log(f"   ficha existente localizada pelo código {ficha.codigo}")
-        self._selecionar_documento(documento)
-        metadados_atualizados = False
-        if not self._nome_arvore_corresponde(documento, ficha):
-            self.log("   metadados da ficha mudaram; atualizando descrição e nome na árvore")
-            try:
-                self._atualizar_metadados_existente(ficha)
-            except RuntimeError as exc:
-                raise RuntimeError(
-                    "a ficha existe e os metadados mudaram, mas o SEI não permitiu "
-                    f"alterá-los; nenhum documento foi excluído ou criado ({exc})"
-                ) from exc
-            metadados_atualizados = True
-            documento = self._esperar(
-                lambda: self._localizar_documento_existente(ficha),
-                "a ficha atualizada reaparecer na árvore",
-                timeout=20,
-            )
-            self._selecionar_documento(documento)
-        editor_existente = self._abrir_editor_existente(janela_principal)
-        if editor_existente:
-            editor_info, janela_editor = editor_existente
-            atual, formato = self._ler_conteudo_editor(editor_info, janela_editor)
-            novo = ficha.conteudo_editor if formato == "conteudo" else ficha.html
-            if html_equivalente(atual, novo):
-                if metadados_atualizados:
-                    self.log("   conteúdo idêntico; somente os metadados foram atualizados")
-                else:
-                    self.log("   conteúdo idêntico; nenhuma alteração necessária")
-                self._finalizar_janela_editor(janela_editor, janela_principal)
-                return STATUS_ATUALIZADA if metadados_atualizados else STATUS_SEM_ALTERACAO
+        self.log(
+            f"   {len(documentos)} versão(ões) localizada(s) pelo código "
+            f"{ficha.codigo}; comparando"
+        )
+        for indice, documento in enumerate(documentos, start=1):
+            self.driver.switch_to.window(janela_principal)
+            self.driver.switch_to.default_content()
+            if self._documento_corresponde_ficha(documento, ficha):
+                self.log(
+                    f"   conteúdo idêntico à versão {indice}; "
+                    "nenhuma alteração necessária"
+                )
+                return STATUS_SEM_ALTERACAO
 
-            self.log("   mudanças encontradas; atualizando o documento existente")
-            self._salvar_html_no_editor(ficha, janela_principal, editor_existente)
-            return STATUS_ATUALIZADA
-
-        # Em documentos bloqueados/assinados a edição pode não estar disponível.
-        # Ainda comparamos o HTML visível, mas nunca criamos outra cópia para
-        # contornar o bloqueio.
         self.driver.switch_to.window(janela_principal)
         self.driver.switch_to.default_content()
-        visualizado = self._esperar(
-            lambda: self._ler_documento_visualizado(ficha),
-            "o conteúdo do documento existente para comparação",
-            timeout=10,
-        )
-        conteudo_atual = self._conteudo_visual_comparavel(visualizado)
-        if html_equivalente(conteudo_atual, ficha.conteudo_editor):
-            if metadados_atualizados:
-                self.log("   conteúdo idêntico; somente os metadados foram atualizados")
-                return STATUS_ATUALIZADA
-            self.log("   conteúdo idêntico; nenhuma alteração necessária")
-            return STATUS_SEM_ALTERACAO
-
-        raise RuntimeError(
-            "a ficha existe e o conteúdo mudou, mas a ação Editar Conteúdo não está "
-            "disponível; nenhum documento foi excluído ou criado"
-        )
+        self.log("   diferenças encontradas; criando uma nova versão da ficha")
+        self._criar_ficha(ficha, janela_principal)
+        return STATUS_CRIADA
 
     def _prevalidar_lote(self, fichas: list[FichaDisciplina]) -> tuple[int, int]:
-        """Mapeia todo o processo antes de criar ou alterar documentos."""
+        """Mapeia o processo antes de criar novas versoes de documentos."""
         self.log("[SEI] Pente-fino inicial: carregando todas as pastas da árvore...")
         self._abrir_todas_pastas()
         vistos: dict[str, FichaDisciplina] = {}
@@ -1213,12 +1343,9 @@ return true;
                 )
             vistos[chave] = ficha
 
-            achados = self._localizar_documentos_existentes(ficha)
-            if len(achados) > 1:
-                raise RuntimeError(
-                    f"foram encontrados {len(achados)} documentos no processo com o "
-                    f"código '{ficha.codigo}'; resolva a duplicidade antes de sincronizar"
-                )
+            achados = self._documentos_ativos(
+                self._localizar_documentos_existentes(ficha)
+            )
             if achados:
                 existentes += 1
             else:
@@ -1230,26 +1357,18 @@ return true;
         return existentes, ausentes
 
     def _verificar_resultado_lote(self, fichas: list[FichaDisciplina]) -> None:
-        """Confirma que cada codigo local aparece uma unica vez no processo."""
+        """Confirma que cada codigo local aparece ao menos uma vez no processo."""
         self._abrir_todas_pastas()
         faltantes: list[str] = []
-        duplicados: list[str] = []
         for ficha in fichas:
-            quantidade = len(self._localizar_documentos_existentes(ficha))
+            quantidade = len(
+                self._documentos_ativos(self._localizar_documentos_existentes(ficha))
+            )
             if quantidade == 0:
                 faltantes.append(ficha.codigo)
-            elif quantidade > 1:
-                duplicados.append(f"{ficha.codigo} ({quantidade})")
-        if faltantes or duplicados:
-            detalhes = []
-            if faltantes:
-                detalhes.append("ausentes: " + ", ".join(faltantes))
-            if duplicados:
-                detalhes.append("duplicados: " + ", ".join(duplicados))
-            raise RuntimeError("; ".join(detalhes))
-        self.log(
-            "[SEI] Pente-fino final: todos os códigos estão presentes uma única vez."
-        )
+        if faltantes:
+            raise RuntimeError("ausentes: " + ", ".join(faltantes))
+        self.log("[SEI] Pente-fino final: todos os códigos estão presentes.")
 
     def carregar_lote(self, fichas: Iterable[FichaDisciplina]) -> tuple[int, list[str]]:
         fichas = list(fichas)

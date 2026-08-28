@@ -136,8 +136,11 @@ class AutomacaoLoteTests(unittest.TestCase):
         self.assertTrue(automacao.abriu_pastas)
         self.assertEqual((existentes, ausentes), (1, 1))
 
-    def test_recusa_documentos_duplicados_no_processo(self):
+    def test_pre_varredura_aceita_multiplas_versoes_no_processo(self):
         class AutomacaoFalsa(AutomacaoSEI):
+            def _abrir_todas_pastas(self):
+                pass
+
             def _localizar_documentos_existentes(self, ficha):
                 return [{"pontos": 100}, {"pontos": 101}]
 
@@ -150,8 +153,348 @@ class AutomacaoLoteTests(unittest.TestCase):
         )
         automacao = AutomacaoFalsa(object(), lambda _mensagem: None)
 
-        with self.assertRaisesRegex(RuntimeError, "2 documentos"):
-            automacao._localizar_documento_existente(ficha)
+        self.assertEqual(automacao._prevalidar_lote([ficha]), (1, 0))
+
+    def test_nao_cria_quando_uma_das_versoes_e_identica(self):
+        class SwitchToFalso:
+            def default_content(self):
+                pass
+
+            def window(self, _handle):
+                pass
+
+        class DriverFalso:
+            window_handles = ["principal"]
+            current_window_handle = "principal"
+            switch_to = SwitchToFalso()
+
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                super().__init__(DriverFalso(), lambda _mensagem: None)
+                self.criadas = 0
+
+            def _achar_editor(self, _janela):
+                return None
+
+            def _abrir_todas_pastas(self):
+                pass
+
+            def _localizar_documentos_existentes(self, _ficha):
+                return [{"versao": "antiga"}, {"versao": "igual"}]
+
+            def _documento_corresponde_ficha(self, documento, _ficha):
+                return documento["versao"] == "igual"
+
+            def _criar_ficha(self, _ficha, _janela):
+                self.criadas += 1
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="A",
+            nome="Teste",
+            html="<html></html>",
+            conteudo_editor="<p>Atual</p>",
+        )
+        automacao = AutomacaoFalsa()
+
+        self.assertEqual(automacao.carregar_ficha(ficha), STATUS_SEM_ALTERACAO)
+        self.assertEqual(automacao.criadas, 0)
+
+    def test_cria_nova_ficha_quando_todas_as_versoes_sao_diferentes(self):
+        class SwitchToFalso:
+            def default_content(self):
+                pass
+
+            def window(self, _handle):
+                pass
+
+        class DriverFalso:
+            window_handles = ["principal"]
+            current_window_handle = "principal"
+            switch_to = SwitchToFalso()
+
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                super().__init__(DriverFalso(), lambda _mensagem: None)
+                self.criadas = 0
+
+            def _achar_editor(self, _janela):
+                return None
+
+            def _abrir_todas_pastas(self):
+                pass
+
+            def _localizar_documentos_existentes(self, _ficha):
+                return [{"versao": "antiga-1"}, {"versao": "antiga-2"}]
+
+            def _documento_corresponde_ficha(self, _documento, _ficha):
+                return False
+
+            def _criar_ficha(self, _ficha, _janela):
+                self.criadas += 1
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="A",
+            nome="Teste",
+            html="<html></html>",
+            conteudo_editor="<p>Atual</p>",
+        )
+        automacao = AutomacaoFalsa()
+
+        self.assertEqual(automacao.carregar_ficha(ficha), STATUS_CRIADA)
+        self.assertEqual(automacao.criadas, 1)
+
+    def test_ficha_cancelada_e_ignorada_e_uma_nova_e_criada(self):
+        class SwitchToFalso:
+            def default_content(self):
+                pass
+
+            def window(self, _handle):
+                pass
+
+        class DriverFalso:
+            window_handles = ["principal"]
+            current_window_handle = "principal"
+            switch_to = SwitchToFalso()
+
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                super().__init__(DriverFalso(), lambda _mensagem: None)
+                self.criadas = 0
+                self.comparacoes = 0
+
+            def _achar_editor(self, _janela):
+                return None
+
+            def _abrir_todas_pastas(self):
+                pass
+
+            def _localizar_documentos_existentes(self, _ficha):
+                return [{"texto": "A - TESTE (Cancelada)", "cancelado": True}]
+
+            def _documento_corresponde_ficha(self, _documento, _ficha):
+                self.comparacoes += 1
+                return False
+
+            def _criar_ficha(self, _ficha, _janela):
+                self.criadas += 1
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="A",
+            nome="Teste",
+            html="<html></html>",
+            conteudo_editor="<p>Atual</p>",
+        )
+        automacao = AutomacaoFalsa()
+
+        self.assertEqual(automacao.carregar_ficha(ficha), STATUS_CRIADA)
+        self.assertEqual(automacao.criadas, 1)
+        self.assertEqual(automacao.comparacoes, 0)
+
+    def test_pre_varredura_considera_ficha_cancelada_como_ausente(self):
+        class AutomacaoFalsa(AutomacaoSEI):
+            def _abrir_todas_pastas(self):
+                pass
+
+            def _localizar_documentos_existentes(self, _ficha):
+                return [{"texto": "A - TESTE CANCELADA"}]
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"), codigo="A", nome="Teste",
+            html="<html></html>", conteudo_editor="<p>Atual</p>",
+        )
+        automacao = AutomacaoFalsa(object(), lambda _mensagem: None)
+
+        self.assertEqual(automacao._prevalidar_lote([ficha]), (0, 1))
+
+    def test_uma_diferenca_de_metadado_impede_equivalencia(self):
+        class AutomacaoFalsa(AutomacaoSEI):
+            tentou_abrir = False
+
+            def _selecionar_no_arvore(self, _href, _id):
+                self.tentou_abrir = True
+                return True
+
+            def _ler_documento_visualizado(self, _ficha, _href=""):
+                return (
+                    "<html><body><div><p>Ficha de Componente Curricular</p></div>"
+                    "<p>Mesmo conteúdo</p></body></html>"
+                )
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="A",
+            nome="Nome atual",
+            html="<html></html>",
+            conteudo_editor="<p>Mesmo conteúdo</p>",
+        )
+        automacao = AutomacaoFalsa(object(), lambda _mensagem: None)
+        documento = {"href": "doc", "id": "1", "texto": "A - NOME ANTIGO"}
+
+        self.assertFalse(automacao._documento_corresponde_ficha(documento, ficha))
+        self.assertFalse(automacao.tentou_abrir)
+
+    def test_compara_conteudo_pelo_editor_sem_salvar(self):
+        class SwitchToFalso:
+            def window(self, _handle):
+                pass
+
+            def default_content(self):
+                pass
+
+        class DriverFalso:
+            current_window_handle = "principal"
+            switch_to = SwitchToFalso()
+
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                super().__init__(DriverFalso(), lambda _mensagem: None)
+                self.editor_fechado = False
+
+            def _selecionar_no_arvore(self, _href, _id):
+                return True
+
+            def _abrir_editor_existente(self, _janela):
+                return {"kind": "teste"}, "editor"
+
+            def _ler_conteudo_editor(self, _editor, _janela):
+                return "<p>Mesmo conteúdo</p>", "conteudo"
+
+            def _finalizar_janela_editor(self, _editor, _principal):
+                self.editor_fechado = True
+
+            def _ler_documento_visualizado(self, _ficha, _href=""):
+                raise AssertionError("não deveria usar a leitura visual")
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="A",
+            nome="Nome atual",
+            html="<html></html>",
+            conteudo_editor="<p>Mesmo conteúdo</p>",
+        )
+        automacao = AutomacaoFalsa()
+        documento = {"href": "doc", "id": "1", "texto": "A - NOME ATUAL"}
+
+        self.assertTrue(automacao._documento_corresponde_ficha(documento, ficha))
+        self.assertTrue(automacao.editor_fechado)
+
+    def test_clica_acao_no_mesmo_script_que_a_relocaliza(self):
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                self.chamadas = []
+
+            def _achar(self, script, *args):
+                self.chamadas.append((script, args))
+                return True
+
+        automacao = AutomacaoFalsa()
+
+        self.assertTrue(automacao._clicar_acao_documento("editar"))
+        script, argumentos = automacao.chamadas[0]
+        self.assertIn("el.click()", script)
+        self.assertEqual(argumentos, ("editar",))
+
+    def test_repete_leitura_lenta_reabrindo_documento(self):
+        class SwitchToFalso:
+            def window(self, _handle):
+                pass
+
+            def default_content(self):
+                pass
+
+        class DriverFalso:
+            switch_to = SwitchToFalso()
+
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                self.logs = []
+                super().__init__(DriverFalso(), self.logs.append, timeout=0.1)
+                self.tentativas = 0
+                self.reaberturas = 0
+                self.timeouts = []
+
+            def _esperar(self, _funcao, _descricao, timeout=None):
+                self.tentativas += 1
+                self.timeouts.append(timeout)
+                if self.tentativas == 1:
+                    raise RuntimeError("SEI ainda carregando")
+                return "<html><body>Ficha carregada</body></html>"
+
+            def _selecionar_no_arvore(self, href, id_):
+                self.reaberturas += 1
+                return (href, id_) == ("doc", "1")
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="A",
+            nome="Teste",
+            html="<html></html>",
+            conteudo_editor="<p>Atual</p>",
+        )
+        automacao = AutomacaoFalsa()
+
+        resultado = automacao._aguardar_conteudo_visualizado(
+            ficha, "doc", "1", "principal"
+        )
+
+        self.assertIn("Ficha carregada", resultado)
+        self.assertEqual(automacao.tentativas, 2)
+        self.assertEqual(automacao.reaberturas, 1)
+        self.assertEqual(automacao.timeouts, [40.0, 40.0])
+
+    def test_leitura_visual_confirma_id_tambem_no_frame_pai(self):
+        class AutomacaoFalsa(AutomacaoSEI):
+            def __init__(self):
+                self.script = ""
+                self.argumentos = ()
+
+            def _achar(self, script, *args):
+                self.script = script
+                self.argumentos = args
+                return "<html>Ficha carregada</html>"
+
+        ficha = FichaDisciplina(
+            caminho=Path("A.html"),
+            codigo="FEELT_IABI",
+            nome="Teste",
+            html="<html></html>",
+            conteudo_editor="<p>Atual</p>",
+        )
+        automacao = AutomacaoFalsa()
+        href = "controlador.php?acao=documento_visualizar&id_documento=123"
+
+        self.assertIn("Ficha carregada", automacao._ler_documento_visualizado(ficha, href))
+        self.assertIn("janela.parent", automacao.script)
+        self.assertIn("idConfirmadoPelaUrl", automacao.script)
+        self.assertEqual(automacao.argumentos, ("FEELT_IABI", href))
+
+    def test_editor_textarea_e_relocalizado_por_id_sem_webelement(self):
+        class SwitchToFalso:
+            def window(self, _handle):
+                pass
+
+            def default_content(self):
+                pass
+
+        class DriverFalso:
+            switch_to = SwitchToFalso()
+
+        class AutomacaoFalsa(AutomacaoSEI):
+            def _achar(self, _script, info):
+                self.info_recebida = info
+                return {"encontrada": True, "conteudo": "<p>Atual</p>"}
+
+        automacao = AutomacaoFalsa(DriverFalso(), lambda _mensagem: None)
+        info = {"kind": "textarea", "id": "txaEditor_1", "name": "txaEditor_1"}
+
+        self.assertEqual(
+            automacao._ler_conteudo_editor(info, "editor"),
+            ("<p>Atual</p>", "documento"),
+        )
+        self.assertEqual(automacao.info_recebida, info)
 
 
 class ExtracaoTextoTests(unittest.TestCase):
