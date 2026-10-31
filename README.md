@@ -95,6 +95,30 @@ parecer**. Ao final, o app pede onde salvar um arquivo `.txt` com o inventário 
 documentos sem alguns campos aparecem só com o que foi encontrado (ex.: nome na árvore e
 código, sem data/resumo).
 
+## Cadastro e inserção de Planos de Ensino
+
+1. Clique em **Inserir no SEI**. Se ainda não houver navegador aberto, o aplicativo abrirá o portal;
+   faça login manualmente e navegue até o processo correto. Clique novamente em **Inserir no SEI**.
+2. Clique em **Planos de Ensino (cadastro)** e escolha **Novo formulário**. Preencha os campos
+   separados nas abas; não é necessário abrir um DOCX. **Importar DOCX** continua disponível
+   para reaproveitar um plano já existente. Os registros ficam em SQLite local em
+   `%LOCALAPPDATA%\PreencheDiarioUFU`.
+3. Na aba **Cronogramas**, edite as linhas por modalidade ou cole a tabela completa com as
+   colunas `Data`, `Modalidade`, `Mat?ria Lecionada`, `Atividades` e `Descri??o Moodle`, depois
+   clique **Aplicar tabela colada**. O texto multilinha da descri??o Moodle atualiza o campo
+   de avalia??o. As datas de provas encontradas nas atividades do cronograma atualizam o
+   calend?rio correspondente.
+4. No cadastro, selecione o plano e clique **Inserir no SEI**. A automa??o escolhe o tipo
+   **Plano de Ensino**, preenche os campos do modelo b?sico do SEI individualmente, substitui
+   as refer?ncias antigas pelas cadastradas e acrescenta as tabelas dos cronogramas teórico e
+   prático ao final da Metodologia, antes da Avaliação. O item **Aprova??o** continua em branco. Revise e salve; a assinatura
+   continua manual.
+
+O cadastro permite criar, editar e remover planos. Ao atualizar por tabela colada, ela precisa
+conter os dois tipos de modalidade (teórica e prática) e os cabeçalhos `Data` e `Modalidade`.
+Na migração dos registros antigos, o programa guarda uma cópia `*_backup_v1_*.sqlite3` antes
+de substituir o armazenamento em HTML por campos estruturados.
+
 ## Estrutura de pastas
 ```
 ufu_diario_preenchimento_visual/

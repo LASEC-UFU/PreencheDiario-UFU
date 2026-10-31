@@ -1,0 +1,276 @@
+                       UNIVERSIDADE FEDERAL DE UBERLÂNDIA
+              Coordenação do Curso de Graduação em Engenharia de Controle e
+                                       Automação
+                 Av. João Naves de Ávila, 2121 - Bairro Santa Mônica, Uberlândia-MG, CEP 38400-902
+                                  Telefone: (34) 3239-4776 - cocca@eletrica.ufu.br
+
+
+
+
+                                           PLANO DE ENSINO
+
+1.               IDENTIFICAÇÃO
+Componente
+Curricular:
+                       Instrumentação Industrial I
+
+Unidade
+                       Faculdade de Engenharia Elétrica
+Ofertante:
+                                                                                            U/UB/UC/UD/U
+Código:                FEELT32503          Período/Série:      5º                  Turma:
+                                                                                            F/
+                            Carga Horária:                                            Natureza:
+                       45h (5          15h (1                  60h (7
+      Teórica:                Prática:                Total:                  ()
+                                                                      Obrigatória:                   ()
+                                                                                             Optativa:
+                       4ha)            8ha)                    2ha)
+Professor(A):          Josué Silva de Morais                             Ano/Semestre: 2026/02
+                       Endereço da disciplina no moodle: https://moodle.ufu.br/course/view
+                       .php?id=1692 cuja chave de acesso é: ININDI
+Observações:
+                       Grupo de WhatsApp da disciplina: https://chat.whatsapp.com/GUhBg
+                       VxVv6D4yPCMzyM9HH
+
+
+2.               EMENTA
+
+
+3.               JUSTIFICATIVA
+
+
+4.               OBJETIVO
+Objetivo Geral:
+
+
+Objetivos Específicos:
+
+
+5.               PROGRAMA
+
+
+6.               METODOLOGIA
+Técnicas de ensino: Aulas expositivas e moodle.
+Recursos didáticos: Quadro, giz, componentes e equipamentos eletrônicos e moodle.
+Recursos audiovisuais: Datashow e moodle.
+7.               AVALIAÇÃO
+A avaliação da disciplina será composta por quatro instrumentos avaliativos, sendo
+duas avaliações teóricas e duas avaliações práticas, além de atividades
+desenvolvidas em sala de aula e questionários semanais.
+
+     Plano de Ensino FEELT32503 Instrumentação Industrial I (7883123)     SEI 23117.058587/2026-81 / pg. 1
+Os questionários serão disponibilizados semanalmente, totalizando 27 (vinte e sete)
+pontos ao longo do semestre, correspondentes a 2,25 (dois virgula vinte e cinto)
+pontos por semana, durante 12 (doze) semanas. A pontuação será atribuída aos
+discentes que realizarem as atividades dentro do prazo estabelecido.
+Adicionalmente, serão realizadas atividades avaliativas em sala de aula, às quartas-
+feiras, no valor de 1 (um) ponto por semana, perfazendo um total de 13 (treze)
+pontos ao final do período letivo.
+A avaliação da disciplina será por meio de duas provas, um trabalho, presença nas
+aulas de laboratório e questionários durante a semana.
+Para os QUESTIONÁRIOS disponibilizados todas as semanas serão distribuídos 26
+pontos (dois pontos por semana em 13 semanas) para aqueles que ﬁzerem estas
+tarefas no prazo definido.
+O TRABALHO será baseado no conteúdo da parte prática, com valor máximo de 36
+pontos. O cálculo do resultado ﬁnal será feito multiplicando a nota obtida na
+apresentação pelo índice de presença nas 12 aulas de laboratório e, posteriormente,
+dividindo o valor por 12. ( conforme os critérios apresentados aqui )
+Quanto as provas vão seguir, o seguinte, calendário:
+· Dia 20 de outubro de 2026: PRIMEIRA AVALIAÇÃO TEÓRICA no valor de 20 pontos.
+· Dia 18 de março de 2025: APRESENTAÇÂO DO TRABALHO FINAL no valor de 36
+pontos.
+· Dia 15 de dezembro de 2026: SEGUNDA AVALIAÇÃO TEÓRICA no valor de 20
+pontos.
+· Dia 20 de março de 2025: AVALIAÇÃO SUBSTITUTIVA (substitui apenas os pontos
+das provas teóricas).
+Segundas-feira 13:10 - 16:50 na sala 3N110 agendada pelo Link
+A atividade de recuperação será aplicada ao estudante que não obteve o
+aproveitamento mínimo necessário (60 pontos) e que possuir 75% de presença. Esta
+atividade consistirá em uma prova no valor de 20 pontos e será cobrado todo o
+conteúdo ministrado. O estudante que realizar a atividade de recuperação terá
+limitada a sua nota ﬁnal em 60 pontos. A atividade de recuperação não se aplica ao
+trabalho final.
+Em complemento ao atendimento regular, todos os alunos que estiverem cursando
+esta disciplina pelo terceiro semestre, ou seja, tenha sido reprovado por dois
+semestres por nota (não incluídas as reprovações por frequência) terão um
+atendimento especial, com atendimento personalizado. Para tanto, aqueles que
+desejarem tal atendimento deverão procurar o professor para que o horário de
+atendimento seja deﬁnido e o plano de recuperação elaborado. Neste caso, o aluno
+especialmente atendido também deverá ter frequência superior a 75% nas seções.
+8.              BIBLIOGRAFIA
+Básica
+Balbinot, A. Instrumentação e Fundamentos de Medidas - Vol. 1. Livros Técnico E
+Científicos Editora. ISBN: 85-216-1496-9.
+Balbinot, A. Instrumentação e Fundamentos de Medidas - Vol. 2. Livros Técnico E
+Científicos Editora. ISBN: 978-85-216-1563-7.
+Bega, E. A. Instrumentação Industrial. Editora Interciência Ltda. ISBN: 8571931372.
+DELMÉE, G. J. Manual de Medição de Vazão. 3º Edição, Editora Blucher, 2003. ISBN
+978-85-212-0321-6.
+Bega, E. A. Instrumentação Aplicada ao Controle de Caldeiras. 3º Edição, Editora
+Interciência Ltda. ISBN: 85-7193-085-6.
+Complementar
+Thomazini, D. Sensores Industriais - Fundamentos e Aplicações. Editora Érica. ISBN:
+978-85-365-0071-3.
+
+     Plano de Ensino FEELT32503 Instrumentação Industrial I (7883123)   SEI 23117.058587/2026-81 / pg. 2
+Alves, J. L. . Instrumentação, Controle e Automação de Processos. Livros Técnico E
+Científicos Editora. ISBN: 85-216-1442-X.
+WERNECK, M. M. Transdutores e Interfaces. Livros Técnicos e Científicos Editora.
+BOLTON, W. Instrumentação e Controle. Hemus Editora Ltda.
+SIGHIERI, L.; NISHINARI, A. Controle Automático De Processos Industriais –
+Instrumentação. Editora Edgard Blucher Ltda.
+HELFRICK, A. D.; COOPER, W. D. Instrumentação Eletrônica Moderna e Técnicas de
+Medição., Prentice Hall, São Paulo, 1994.
+LIRA, F. A. Metrologia na Indústria., Érica, São Paulo, 2001.
+SCNELL, L. Technology of Electrical Measurements. John Wiley, New York, EUA,
+1993.
+FOWLER, K. R. Electronic Instrument Design – Architecting for the life cycle. Oxford
+Press, Oxford, England, 1996.
+INMETRO. Guia para a Expressão de Incerteza de Medição. ABNT_INMETRO_SBM,
+1998.
+DALLY, J. W.; RYLEY, W. E.; McCONNELL, K. G. Instrumentation for Engineering
+Measurements. New York, EUA: John Wiley, 1993.
+9.              APROVAÇÃO
+Aprovado em reunião do Colegiado realizada em: ____/____/______
+Coordenação do Curso de Graduação: _________________________
+
+
+9.1.            Cronograma das atividades curriculares:
+9.2.            Dimensão Teórica
+     Data                                               Atividades
+01/09/2026 Avisos e Aspectos Gerais do Curso — ININDI banco de questões compartilhado |
+           mq_state
+01/09/2026 BLOCO 01 (Inicia: 01/09/2026 e Termina: 08/09/2026). — Teórica Terça 01:
+           Apresentação do Plano de Ensino e revisão de Python (Realizar-se-á: 01/09/2026). |
+           Questionário 01: Normas de segurança (Inicia: 01/09/2026 e termina: 08/09/2026).
+03/09/2026 BLOCO 01 (Inicia: 01/09/2026 e Termina: 08/09/2026). — Teórica Quinta 01: Python
+           aplicado em projetos de Engenharia (Realizar-se-á: 03/09/2026).
+08/09/2026 BLOCO 02 (Inicia: 08/09/2026 e Termina: 15/09/2026). — Teórica Terça 02: Normas de
+           segurança (Realizar-se-á: 08/09/2026). | Questionário 02: Grafia Correta, Notações e
+           Variáveis (Inicia: 08/09/2026 e termina: 15/09/2026).
+10/09/2026 BLOCO 02 (Inicia: 08/09/2026 e Termina: 15/09/2026). — Teórica Quinta 02: GPIO e
+           Debug na ESP32 (Realizar-se-á: 10/09/2026).
+15/09/2026 BLOCO 03 (Inicia: 15/09/2026 e Termina: 22/09/2026). — Teórica Terça 03: Grafia
+           Correta, Notações e Variáveis (Realizar-se-á: 15/09/2026). | Questionário 03: Erro e
+           Incertezas (Inicia: 15/09/2026 e termina: 22/09/2026).
+17/09/2026 BLOCO 03 (Inicia: 15/09/2026 e Termina: 22/09/2026). — Teórica Quinta 03: Wifi, mDNS
+           e OTA (Realizar-se-á: 17/09/2026).
+22/09/2026 BLOCO 04 (Inicia: 22/09/2026 e Termina: 29/09/2026). — Horário de Segunda - Sem
+           Aula (Realizar-se-á: 22/09/2026).
+24/09/2026 BLOCO 04 (Inicia: 22/09/2026 e Termina: 29/09/2026). — Teórica Quinta 04:
+           TaskManager e Interrupções na ESP32 (Realizar-se-á: 24/09/2026).
+29/09/2026 BLOCO 05 (Inicia: 29/09/2026 e Termina: 06/10/2026). — Teórica Terça 04: Erro e
+           Incertezas (Realizar-se-á: 29/09/2026). | Questionário 04: Condicionadores de Sinais
+           (Inicia: 29/09/2026 e termina: 06/10/2026).
+
+
+
+     Plano de Ensino FEELT32503 Instrumentação Industrial I (7883123)   SEI 23117.058587/2026-81 / pg. 3
+01/10/2026 BLOCO 05 (Inicia: 29/09/2026 e Termina: 06/10/2026). — Teórica Quinta 05: Acesso
+           Direto a Memoria (DMA) na ESP32 (Realizar-se-á: 01/10/2026).
+06/10/2026 BLOCO 06 (Inicia: 06/10/2026 e Termina: 13/10/2026). — Teórica Terça 05:
+           Condicionadores de Sinais (Realizar-se-á: 06/10/2026). | Questionário 05: Transdutores,
+           Conversores e Sensores (Inicia: 06/10/2026 e termina: 13/10/2026).
+08/10/2026 BLOCO 06 (Inicia: 06/10/2026 e Termina: 13/10/2026). — Teórica Quinta 06: Protocolos
+           de Comunicação Serial: I2C, SPI e UART (Realizar-se-á: 08/10/2026).
+13/10/2026 BLOCO 07 (Inicia: 13/10/2026 e Termina: 20/10/2026). — Teórica Terça 06:
+           Transdutores, Conversores e Sensores (Realizar-se-á: 13/10/2026). | Sem questionáiro -
+           Preparatório para 1º Prova (Inicia: 13/10/2026 e termina: 20/10/2026).
+20/10/2026 BLOCO 08 (Inicia: 20/10/2026 e Termina: 27/10/2026). — Teórica Terça: 1º Prova
+           (Realizar-se-á: 20/10/2026). | Questionários 06: Conversores A/D e D/A (Inicia:
+           20/10/2026 e termina: 27/10/2026).
+22/10/2026 BLOCO 08 (Inicia: 20/10/2026 e Termina: 27/10/2026). — Teórica Quinta 07: DAC, PWM,
+           Filtros e Técnicas de Alta Resolução
+
+27/10/2026 BLOCO 09 (Inicia: 27/10/2026 e Termina: 03/11/2026). — Teórica Terça 07: Conversores
+           A/D e D/A (Realizar-se-á: 27/10/2026). | Questionário 07: Confiabilidade e
+           Disponibilidade (Inicia: 27/10/2026 e termina: 03/11/2026).
+29/10/2026 BLOCO 09 (Inicia: 27/10/2026 e Termina: 03/11/2026). — Teórica Quinta 08: Root Mean
+           Square, Fundamentos, Implementação e Otimização (Realizar-se-á: 29/10/2026).
+03/11/2026 BLOCO 10 (Inicia: 03/11/2026 e Termina: 10/11/2026). — Teórica Terça 08:
+           Confiabilidade e Disponibilidade (Realizar-se-á: 03/11/2026). | Questionário 08:
+           Medidores de Grandezas Elétricas (Inicia: 03/11/2026 e termina: 10/11/2026).
+05/11/2026 BLOCO 10 (Inicia: 03/11/2026 e Termina: 10/11/2026). — Teórica Quinta 09:
+           Processamento Digital de Sinais na ESP32 parte 1/2 (Realizar-se-á: 05/11/2026).
+10/11/2026 BLOCO 11 (Inicia: 10/11/2026 e Termina: 17/11/2026). — Teórica Terça 09: Medidores
+           de Grandezas Elétricas (Realizar-se-á: 10/11/2026). | Questionário 09: Transformadores
+           para instrumentação (Inicia: 10/11/2026 e termina: 17/11/2026).
+12/11/2026 BLOCO 11 (Inicia: 10/11/2026 e Termina: 17/11/2026). — Teórica Quinta 10:
+           Processamento Digital de Sinais na ESP32 parte 2/2 (Realizar-se-á: 12/11/2026).
+17/11/2026 BLOCO 12 (Inicia: 17/11/2026 e Termina: 24/11/2026). — Teórica Terça 10:
+           Questionários sobre Transformadores para instrumentação (Realizar-se-á: 17/11/2026).
+           | Questionário 10: Aterramentos na Instrumentação (Inicia: 17/11/2026 e termina:
+           24/11/2026).
+19/11/2026 BLOCO 12 (Inicia: 17/11/2026 e Termina: 24/11/2026). — Teórica Quinta 11: Tempo
+           Real e FreeRTOS na ESP32 (Realizar-se-á: 19/11/2026).
+24/11/2026 BLOCO 13 (Inicia: 24/11/2026 e Termina: 01/12/2026). — Teórica Terça 11:
+           Questionários sobre Aterramentos na Instrumentação (Realizar-se-á: 24/11/2026). |
+           Questionário 11: Área Classificada e Atmosferas Explosivas (Inicia: 24/11/2026 e
+           termina: 01/12/2026).
+26/11/2026 BLOCO 13 (Inicia: 24/11/2026 e Termina: 01/12/2026). — Teórica Quinta 12:
+           Comunicacao Avancada e Protocolos Industriais (Realizar-se-á: 26/11/2026).
+01/12/2026 BLOCO 14 (Inicia: 01/12/2026 e Termina: 08/12/2026). — Teórica Terça 12:
+           Questionários sobre Area Classificada e Atmosferas Explosivas (Realizar-se-á:
+           01/12/2026). | Questionário 12: Telemetria e Comunicação Hart (Inicia: 01/12/2026 e
+           termina: 08/12/2026).
+03/12/2026 BLOCO 14 (Inicia: 01/12/2026 e Termina: 08/12/2026). — Teórica Quinta: Sem aula,
+           Padroeira da cidade (Realizar-se-á: 03/12/2026).
+
+
+
+
+   Plano de Ensino FEELT32503 Instrumentação Industrial I (7883123)   SEI 23117.058587/2026-81 / pg. 4
+08/12/2026 BLOCO 15 (Inicia: 08/12/2026 e Termina: 15/12/2026). — Teórica Terça 13:
+           Questionários sobre Telemetria e Comunicação Hart (Realizar-se-á: 08/12/2026). | Sem
+           questionário, preparatório para 2º Prova teórica (Inicia: 08/12/2026 e termina:
+           15/12/2026).
+10/12/2026 BLOCO 15 (Inicia: 08/12/2026 e Termina: 15/12/2026). — Teórica Quinta: Sem aula,
+           semana de Prova (Realizar-se-á: 10/12/2026).
+15/12/2026 BLOCO 16 (Inicia: 15/12/2026 e Termina: 22/12/2026). — Teórica Terça: 2º Prova
+           (Realizar-se-á: 15/12/2026).
+17/12/2026 BLOCO 16 (Inicia: 15/12/2026 e Termina: 22/12/2026). — Teórica Quinta 13: Otimizacao
+           e Performance na ESP32 (Realizar-se-á: 17/12/2026).
+
+18/12/2026 BLOCO 16 (Inicia: 15/12/2026 e Termina: 22/12/2026). — Prova Substitutiva (Realizar-
+           se-á: 18/12/2026).
+
+9.3.           Dimensão Prática
+   Data                                                Atividades
+02/09/2026 BLOCO 01 (Inicia: 01/09/2026 e Termina: 08/09/2026). — Prática 01: GitHub + VSCode
+           + Platform.IO (Realizar-se-á: 02/09/2026).
+09/09/2026 BLOCO 02 (Inicia: 08/09/2026 e Termina: 15/09/2026). — Prática 02: Piscando um LED
+           na ESP32 e o SimulIDE (Realizar-se-á: 09/09/2026).
+16/09/2026 BLOCO 03 (Inicia: 15/09/2026 e Termina: 22/09/2026). — Prática 03: GPIO e Debug na
+           ESP32 (Realizar-se-á: 16/09/2026).
+23/09/2026 BLOCO 04 (Inicia: 22/09/2026 e Termina: 29/09/2026). — Prática 04: Wifi, OTA e mDNS
+           na Esp32 (Realizar-se-á: 23/09/2026).
+30/09/2026 BLOCO 05 (Inicia: 29/09/2026 e Termina: 06/10/2026). — Prática 05: TaskManager e
+           Interrupções (Realizar-se-á: 30/09/2026).
+07/10/2026 BLOCO 06 (Inicia: 06/10/2026 e Termina: 13/10/2026). — Prática 06: ADC e DMA
+           (Realizar-se-á: 07/10/2026).
+14/10/2026 BLOCO 07 (Inicia: 13/10/2026 e Termina: 20/10/2026). — Prática 07: Lendo o valor de
+           pico, Médio e RMS na ESP32 (Realizar-se-á: 14/10/2026).
+21/10/2026 BLOCO 08 (Inicia: 20/10/2026 e Termina: 27/10/2026). — Prática: 1º Prova (Realizar-se-
+           á: 21/10/2026).
+04/11/2026 BLOCO 10 (Inicia: 03/11/2026 e Termina: 10/11/2026). — Prática 08: DAC e PWM
+           (Realizar-se-á: 04/11/2026).
+11/11/2026 BLOCO 11 (Inicia: 10/11/2026 e Termina: 17/11/2026). — Prática 09: Filtros Analógicos e
+           Filtro Anti-Aliasing (Realizar-se-á: 11/11/2026).
+18/11/2026 BLOCO 12 (Inicia: 17/11/2026 e Termina: 24/11/2026). — Prática 10: Filtro digital FIR
+           (Realizar-se-á: 18/11/2026).
+25/11/2026 BLOCO 13 (Inicia: 24/11/2026 e Termina: 01/12/2026). — Prática 11: Filtro digital IIR
+           (Realizar-se-á: 25/11/2026).
+02/12/2026 BLOCO 14 (Inicia: 01/12/2026 e Termina: 08/12/2026). — Prática 12: Calibração e Ajuste
+           de Dispositivos (Realizar-se-á: 02/12/2026).
+09/12/2026 BLOCO 15 (Inicia: 08/12/2026 e Termina: 15/12/2026). — Prática 13: Caracterização
+           Estatica (Realizar-se-á: 09/12/2026).
+16/12/2026 BLOCO 16 (Inicia: 15/12/2026 e Termina: 22/12/2026). — Prática: 2º Prova (Realizar-se-
+           á: 16/12/2026).
+
+Referência: Processo nº 23117.058587/2026-81                                                SEI nº 7883123
+
+
+
+    Plano de Ensino FEELT32503 Instrumentação Industrial I (7883123)   SEI 23117.058587/2026-81 / pg. 5
+

@@ -27,6 +27,10 @@ from services.sei import (
 from ui.dialogs import ask_edit_item, choose_from_list, ask_shift_params
 from features.excel_import import process_worksheet
 from features.date_shift import shift_value_map
+from features.plano_ensino import (
+    PlanoEnsino, campo_vazio, listar_planos, obter_plano, salvar_plano, remover_plano,
+    ler_docx, aplicar_cronograma, ler_cronograma_editor, formatar_cronograma_editor,
+)
 
 
 class App(Tk):
@@ -70,31 +74,36 @@ class App(Tk):
         sei = LabelFrame(self, text="SEI / Fichas de componentes curriculares")
         sei.pack(side=TOP, fill=X, padx=6, pady=(0, 6))
 
-        ttk.Label(sei, text="Endereço:").pack(side=LEFT, padx=(6, 2), pady=6)
-        self.ent_sei_url = Entry(sei, textvariable=self.sei_url_var, width=30)
+        sei_controls = Frame(sei)
+        sei_controls.pack(side=TOP, fill=X)
+
+        ttk.Label(sei_controls, text="Endereço:").pack(side=LEFT, padx=(6, 2), pady=6)
+        self.ent_sei_url = Entry(sei_controls, textvariable=self.sei_url_var, width=30)
         self.ent_sei_url.pack(side=LEFT, fill=X, expand=True, padx=(0, 4), pady=6)
-        self.btn_open_sei = Button(sei, text="Abrir SEI", command=self.on_open_sei)
+        self.btn_open_sei = Button(sei_controls, text="Abrir SEI", command=self.on_open_sei)
         self.btn_open_sei.pack(side=LEFT, padx=4, pady=6)
         self.btn_choose_fichas = Button(
-            sei, text="Selecionar pasta de fichas", command=self.on_choose_fichas
+            sei_controls, text="Selecionar pasta de fichas", command=self.on_choose_fichas
         )
         self.btn_choose_fichas.pack(side=LEFT, padx=4, pady=6)
-        self.lbl_fichas = ttk.Label(sei, textvariable=self.sei_folder_var, width=28)
+        self.lbl_fichas = ttk.Label(sei_controls, textvariable=self.sei_folder_var, width=28)
         self.lbl_fichas.pack(side=LEFT, padx=4, pady=6)
         self.btn_load_sei = Button(
-            sei,
+            sei_controls,
             text="Carregar fichas no processo",
             command=self.on_load_fichas_sei,
             state="disabled",
         )
         self.btn_load_sei.pack(side=RIGHT, padx=6, pady=6)
         self.btn_extract_sei = Button(
-            sei,
+            sei_controls,
             text="Extrair árvore do processo",
             command=self.on_extract_sei_tree,
             state="disabled",
         )
         self.btn_extract_sei.pack(side=RIGHT, padx=6, pady=6)
+        self.btn_plans = Button(sei, text="Planos de Ensino (cadastro)", command=self.on_manage_plans)
+        self.btn_plans.pack(side=TOP, anchor="w", padx=6, pady=(0, 6))
 
         main = Frame(self); main.pack(side=TOP, fill=BOTH, expand=True)
         left = Frame(main, width=520); left.pack(side=LEFT, fill=BOTH, expand=True)
@@ -155,6 +164,7 @@ class App(Tk):
         self.btn_open_sei.configure(state=state)
         self.btn_open_browser.configure(state=state)
         self.btn_choose_fichas.configure(state=state)
+        self.btn_plans.configure(state=state)
         self.ent_sei_url.configure(state=state)
         self._validate_ready()
 
@@ -245,6 +255,326 @@ class App(Tk):
         for erro in erros:
             self._log(f"[AVISO] Ignorada: {erro}")
         self._validate_ready()
+
+    def on_manage_plans(self):
+        """Cadastro de planos por campos do modelo, com inserção no processo SEI."""
+        from tkinter import Toplevel
+
+        janela = Toplevel(self)
+        janela.title("Cadastro de Planos de Ensino")
+        janela.geometry("1200x800")
+        janela.transient(self)
+        esquerda = Frame(janela)
+        esquerda.pack(side=LEFT, fill=Y, padx=8, pady=8)
+        direita = Frame(janela)
+        direita.pack(side=LEFT, fill=BOTH, expand=True, padx=8, pady=8)
+        lista = Listbox(esquerda, width=36, exportselection=False)
+        lista.pack(fill=Y, expand=True)
+        estado = {"planos": []}
+
+        def atualizar_lista(selecionar_id=None):
+            try:
+                estado["planos"] = listar_planos()
+            except Exception as exc:
+                messagebox.showerror("Banco de Planos", str(exc), parent=janela)
+                return
+            lista.delete(0, END)
+            indice = 0
+            for i, plano in enumerate(estado["planos"]):
+                lista.insert(END, f"{plano['nome']} ({plano['codigo']})")
+                if plano["id"] == selecionar_id:
+                    indice = i
+            if estado["planos"]:
+                lista.selection_set(indice)
+
+        def selecionado():
+            sel = lista.curselection()
+            return estado["planos"][sel[0]] if sel else None
+
+        def abrir_editor(campos, plano_id=None, caminho_docx=""):
+            editor = Toplevel(janela)
+            editor.title("Novo Plano de Ensino" if plano_id is None else "Editar Plano de Ensino")
+            largura = min(1000, editor.winfo_screenwidth() - 80)
+            altura = min(680, editor.winfo_screenheight() - 120)
+            x = max(0, (editor.winfo_screenwidth() - largura) // 2)
+            y = max(0, (editor.winfo_screenheight() - altura) // 2)
+            editor.geometry(f"{largura}x{altura}+{x}+{y}")
+            editor.minsize(min(820, largura), min(560, altura))
+            editor.transient(janela)
+            rodape = Frame(editor)
+            rodape.pack(side=BOTTOM, fill=X, padx=8, pady=(0, 8))
+            ttk.Label(rodape, text="O item Aprovação é gerado em branco, conforme o manual do SEI.").pack(
+                anchor="w", padx=4, pady=(2, 4)
+            )
+            botoes = Frame(rodape)
+            botoes.pack(fill=X)
+
+            abas = ttk.Notebook(editor)
+            abas.pack(fill=BOTH, expand=True, padx=8, pady=8)
+            entradas, textos = {}, {}
+
+            def nova_aba(titulo):
+                frame = ttk.Frame(abas)
+                abas.add(frame, text=titulo)
+                return frame
+
+            def entrada(frame, key, label, value="", row=None, column=0):
+                box = ttk.Frame(frame)
+                box.grid(row=row if row is not None else len(entradas), column=column,
+                         sticky="ew", padx=8, pady=5)
+                ttk.Label(box, text=label).pack(anchor="w")
+                var = StringVar(value=value or "")
+                Entry(box, textvariable=var).pack(fill=X, pady=(2, 0))
+                entradas[key] = var
+                return box
+
+            def texto(frame, key, label, value="", height=7):
+                box = ttk.LabelFrame(frame, text=label)
+                box.pack(fill=BOTH, expand=True, padx=8, pady=5)
+                widget = Text(box, wrap="word", height=height, undo=True)
+                widget.pack(fill=BOTH, expand=True, padx=5, pady=5)
+                if value:
+                    widget.insert("1.0", value)
+                textos[key] = widget
+                return widget
+
+            ident = campos["identificacao"]
+            tab = nova_aba("Identificação")
+            grade_ident = ttk.Frame(tab)
+            grade_ident.pack(fill=X)
+            grade_ident.columnconfigure(0, weight=1)
+            grade_ident.columnconfigure(1, weight=1)
+            for row, (key, label) in enumerate((
+                ("nome", "Componente Curricular"), ("codigo", "Código"),
+                ("unidade_ofertante", "Unidade Ofertante"), ("periodo_serie", "Período/Série"),
+                ("turma", "Turma"), ("professor", "Professor(a)"),
+                ("ano_semestre", "Ano/Semestre"), ("carga_teorica", "Carga horária teórica"),
+                ("carga_pratica", "Carga horária prática"), ("carga_total", "Carga horária total"),
+            )):
+                entrada(grade_ident, f"identificacao.{key}", label, ident.get(key), row=row // 2, column=row % 2)
+            natbox = ttk.Frame(grade_ident)
+            natbox.grid(row=5, column=0, sticky="ew", padx=8, pady=5)
+            ttk.Label(natbox, text="Natureza").pack(anchor="w")
+            natureza = StringVar(value=ident.get("natureza", "Obrigatória"))
+            ttk.Combobox(natbox, textvariable=natureza, values=["Obrigatória", "Optativa"],
+                         state="readonly").pack(fill=X, pady=(2, 0))
+            entradas["identificacao.natureza"] = natureza
+            texto(tab, "identificacao.observacoes", "Observações", ident.get("observacoes", ""), height=5)
+
+            tab = nova_aba("Ementa e justificativa")
+            texto(tab, "ementa", "Ementa", campos.get("ementa", ""), height=7)
+            texto(tab, "justificativa", "Justificativa", campos.get("justificativa", ""), height=10)
+
+            tab = nova_aba("Objetivos")
+            texto(tab, "objetivo_geral", "Objetivo geral", campos.get("objetivo_geral", ""), height=8)
+            texto(tab, "objetivos_especificos", "Objetivos específicos", campos.get("objetivos_especificos", ""), height=12)
+
+            tab = nova_aba("Programa")
+            texto(tab, "programa_teorico", "Dimensão teórica", campos.get("programa_teorico", ""), height=13)
+            texto(tab, "programa_pratico", "Dimensão prática", campos.get("programa_pratico", ""), height=10)
+
+            tab = nova_aba("Metodologia")
+            texto(tab, "metodologia_tecnicas", "Técnicas de ensino", campos.get("metodologia_tecnicas", ""), height=7)
+            texto(tab, "metodologia_recursos", "Recursos didáticos", campos.get("metodologia_recursos", ""), height=6)
+            texto(tab, "metodologia_audiovisuais", "Recursos audiovisuais", campos.get("metodologia_audiovisuais", ""), height=5)
+
+            tab = nova_aba("Cronogramas")
+            teoria = texto(tab, "cronograma_teorico_tsv", "Cronograma teórico — data<TAB>atividade por linha",
+                           formatar_cronograma_editor(campos.get("cronograma_teorico", [])), height=9)
+            pratica = texto(tab, "cronograma_pratico_tsv", "Cronograma prático — data<TAB>atividade por linha",
+                            formatar_cronograma_editor(campos.get("cronograma_pratico", [])), height=7)
+            colado = texto(tab, "cronograma_colado", "Cole a tabela completa (Excel/TSV) para atualizar os dois cronogramas", height=6)
+
+            tab = nova_aba("Avaliação e atendimento")
+            texto(tab, "avaliacao_geral", "Avaliação", campos.get("avaliacao_geral", ""), height=8)
+            texto(tab, "avaliacao_provas", "Calendário e distribuição de pontos", campos.get("avaliacao_provas", ""), height=8)
+            texto(tab, "horario_atendimento", "Horário de atendimento", campos.get("horario_atendimento", ""), height=4)
+            texto(tab, "atividade_recuperacao", "Atividade de recuperação", campos.get("atividade_recuperacao", ""), height=5)
+            texto(tab, "atendimento_especial", "Atendimento especial", campos.get("atendimento_especial", ""), height=5)
+
+            tab = nova_aba("Bibliografia")
+            texto(tab, "bibliografia_basica_tsv", "Bibliografia básica — um título por linha",
+                  "\n".join(campos.get("bibliografia_basica", [])), height=10)
+            texto(tab, "bibliografia_complementar_tsv", "Bibliografia complementar — um título por linha",
+                  "\n".join(campos.get("bibliografia_complementar", [])), height=10)
+
+            def ler_campos_da_tela():
+                saida = campo_vazio()
+                for key, var in entradas.items():
+                    secao, nome_campo = key.split(".", 1)
+                    saida[secao][nome_campo] = var.get().strip()
+                for key, widget in textos.items():
+                    valor = widget.get("1.0", "end-1c").strip()
+                    if key.startswith("identificacao."):
+                        saida["identificacao"][key.split(".", 1)[1]] = valor
+                    elif key == "cronograma_teorico_tsv":
+                        saida["cronograma_teorico"] = ler_cronograma_editor(valor)
+                    elif key == "cronograma_pratico_tsv":
+                        saida["cronograma_pratico"] = ler_cronograma_editor(valor)
+                    elif key == "bibliografia_basica_tsv":
+                        saida["bibliografia_basica"] = [x.strip() for x in valor.splitlines() if x.strip()]
+                    elif key == "bibliografia_complementar_tsv":
+                        saida["bibliografia_complementar"] = [x.strip() for x in valor.splitlines() if x.strip()]
+                    elif key != "cronograma_colado":
+                        saida[key] = valor
+                return saida
+
+            def atualizar_com_tabela_colada():
+                bruto = colado.get("1.0", "end-1c").strip()
+                try:
+                    dados = aplicar_cronograma(ler_campos_da_tela(), bruto)
+                except Exception as exc:
+                    messagebox.showerror("Atualizar cronogramas", str(exc), parent=editor)
+                    return
+                for widget, chave in ((teoria, "cronograma_teorico"), (pratica, "cronograma_pratico")):
+                    widget.delete("1.0", END)
+                    widget.insert("1.0", formatar_cronograma_editor(dados[chave]))
+                textos["avaliacao_provas"].delete("1.0", END)
+                textos["avaliacao_provas"].insert("1.0", dados["avaliacao_provas"])
+                messagebox.showinfo("Cronogramas", "Cronogramas teórico e prático atualizados.", parent=editor)
+
+            Button(botoes, text="Aplicar tabela colada", command=atualizar_com_tabela_colada,
+                   height=2, font=("Segoe UI", 9)).pack(side=LEFT, padx=4, pady=3, ipadx=5)
+
+            def salvar():
+                try:
+                    dados = ler_campos_da_tela()
+                    ident_atual = dados["identificacao"]
+                    if not ident_atual["nome"] or not ident_atual["codigo"]:
+                        raise ValueError("Preencha Componente Curricular e Código na aba Identificação.")
+                    novo_id = salvar_plano(dados, caminho_docx, plano_id)
+                    atualizar_lista(novo_id)
+                    editor.destroy()
+                except Exception as exc:
+                    messagebox.showerror("Cadastro de Plano", str(exc), parent=editor)
+
+            Button(botoes, text="Salvar no cadastro", command=salvar, width=22, height=2,
+                   font=("Segoe UI", 10, "bold")).pack(side=RIGHT, padx=6, pady=3, ipadx=8)
+            Button(botoes, text="Fechar", command=editor.destroy, width=14, height=2,
+                   font=("Segoe UI", 10, "bold")).pack(side=RIGHT, padx=6, pady=3, ipadx=8)
+
+        def novo():
+            abrir_editor(campo_vazio())
+
+        def importar_docx():
+            caminho = filedialog.askopenfilename(parent=janela, title="Importar dados de um DOCX existente",
+                                                  filetypes=[("Documento Word", "*.docx")])
+            if not caminho:
+                return
+            try:
+                plano = ler_docx(caminho)
+                abrir_editor(plano.campos, caminho_docx=str(plano.caminho))
+            except Exception as exc:
+                messagebox.showerror("Importar DOCX", str(exc), parent=janela)
+
+        def editar_selecionado():
+            plano = selecionado()
+            if plano:
+                abrir_editor(plano["campos"], plano["id"], plano.get("caminho_docx", ""))
+
+        def excluir():
+            plano = selecionado()
+            if plano and messagebox.askyesno("Remover plano", f"Remover {plano['nome']} do cadastro local?", parent=janela):
+                try:
+                    remover_plano(plano["id"])
+                    atualizar_lista()
+                except Exception as exc:
+                    messagebox.showerror("Cadastro de plano", str(exc), parent=janela)
+
+        def enviar_sei():
+            registro = selecionado()
+            if not registro:
+                messagebox.showerror("Plano de Ensino", "Selecione um plano.", parent=janela)
+                return
+            if not self.driver:
+                url = self.sei_url_var.get().strip()
+                if not re.match(r"^https?://", url, flags=re.IGNORECASE):
+                    messagebox.showerror("Endereço do SEI", "Informe uma URL válida do SEI.", parent=janela)
+                    return
+                browser = self.browser_var.get().strip() or "edge"
+                self._set_sei_running(True)
+                def abrir_sei():
+                    try:
+                        self._log(f"[SEI] Abrindo navegador para acessar {url}...")
+                        self.driver = create_driver(browser=browser, logger=self._log)
+                        self.driver.get(url)
+                        self._log("[SEI] Faça login manualmente e abra o processo que receberá o plano.")
+                        self.after(0, lambda: messagebox.showinfo(
+                            "Acesse o processo no SEI",
+                            "O navegador foi aberto. Faça login e navegue até o processo correto.\n\n"
+                            "Deixe o processo aberto e clique novamente em Inserir no SEI.",
+                            parent=janela if janela.winfo_exists() else self))
+                    except Exception as exc:
+                        mensagem = str(exc)
+                        self._log(f"[ERRO] Falha ao abrir o SEI: {mensagem}")
+                        self.after(0, lambda: messagebox.showerror("Navegador", mensagem, parent=self))
+                    finally:
+                        self.after(0, lambda: self._set_sei_running(False))
+                threading.Thread(target=abrir_sei, daemon=True).start()
+                return
+
+            campos = registro["campos"]
+            obrigatorios = {
+                "ementa": "Ementa", "justificativa": "Justificativa", "objetivo_geral": "Objetivo geral",
+                "objetivos_especificos": "Objetivos específicos", "programa_teorico": "Programa teórico",
+                "programa_pratico": "Programa prático", "metodologia_tecnicas": "Técnicas de ensino",
+                "metodologia_recursos": "Recursos didáticos", "metodologia_audiovisuais": "Recursos audiovisuais",
+                "avaliacao_geral": "Avaliação", "avaliacao_provas": "Calendário de avaliações",
+                "horario_atendimento": "Horário de atendimento", "atividade_recuperacao": "Atividade de recuperação",
+                "atendimento_especial": "Atendimento especial",
+            }
+            faltantes = [rotulo for chave, rotulo in obrigatorios.items() if not str(campos.get(chave, "")).strip()]
+            for chave, rotulo in (("cronograma_teorico", "Cronograma teórico"), ("cronograma_pratico", "Cronograma prático")):
+                if not campos.get(chave): faltantes.append(rotulo)
+            if not campos.get("bibliografia_basica"): faltantes.append("Bibliografia básica")
+            if not campos.get("bibliografia_complementar"): faltantes.append("Bibliografia complementar")
+            campos_ident = campos["identificacao"]
+            for chave, rotulo in (("unidade_ofertante", "Unidade ofertante"), ("periodo_serie", "Período/Série"),
+                                  ("turma", "Turma"), ("carga_teorica", "Carga horária teórica"),
+                                  ("carga_pratica", "Carga horária prática"), ("carga_total", "Carga horária total"),
+                                  ("professor", "Professor(a)"), ("ano_semestre", "Ano/Semestre")):
+                if not campos_ident.get(chave): faltantes.append(rotulo)
+            if faltantes:
+                messagebox.showerror("Plano incompleto", "Preencha os campos antes de inserir:\n\n• " + "\n• ".join(faltantes), parent=janela)
+                return
+            if not messagebox.askyesno("Inserir no SEI",
+                    f"Criar o Plano de Ensino de {registro['nome']} no processo atualmente aberto?\n\n"
+                    "O documento será salvo sem assinatura. Revise o processo e assine manualmente quando estiver pronto.", parent=janela):
+                return
+            plano_id = registro["id"]
+            self._set_sei_running(True)
+            janela.destroy()
+            def _run():
+                try:
+                    atual = obter_plano(plano_id)
+                    plano = PlanoEnsino(Path(atual.get("caminho_docx") or ""), atual["campos"])
+                    self._log(f"[SEI] Inserindo Plano de Ensino: {plano.nome} ({plano.codigo})")
+                    AutomacaoSEI(self.driver, self._log).carregar_plano_ensino(plano)
+                    self.after(0, lambda: messagebox.showinfo("Plano salvo",
+                        "Plano de Ensino salvo no processo. O item Aprovação ficou em branco; faça a assinatura manual no SEI.", parent=self))
+                except Exception as exc:
+                    mensagem = str(exc)
+                    self._log(f"[ERRO] Não foi possível inserir o Plano de Ensino: {mensagem}")
+                    self.after(0, lambda: messagebox.showerror("Inserção no SEI", mensagem, parent=self))
+                finally:
+                    self.after(0, lambda: self._set_sei_running(False))
+            threading.Thread(target=_run, daemon=True).start()
+
+        botoes = Frame(esquerda)
+        botoes.pack(fill=X, pady=8)
+        Button(botoes, text="Novo formulário", command=novo).pack(fill=X, pady=2)
+        Button(botoes, text="Importar DOCX", command=importar_docx).pack(fill=X, pady=2)
+        Button(botoes, text="Editar", command=editar_selecionado).pack(fill=X, pady=2)
+        Button(botoes, text="Remover", command=excluir).pack(fill=X, pady=2)
+        Button(botoes, text="Inserir no SEI", command=enviar_sei).pack(fill=X, pady=2)
+        ttk.Label(direita, text=(
+            "Preencha cada seção nas abas do formulário. Os campos são salvos separadamente no banco local.\n"
+            "A aba Cronogramas aceita edição por linha (data e atividade) ou atualização pela tabela completa colada.\n"
+            "O documento é montado no padrão 1–9 do SEI; Aprovação fica em branco.\n"
+            "Se ainda não houver navegador aberto, Inserir no SEI abre o portal para login e navegação até o processo."
+        ), justify=LEFT).pack(anchor="nw", padx=16, pady=16)
+        lista.bind("<Double-Button-1>", lambda _event: editar_selecionado())
+        atualizar_lista()
 
     def on_load_fichas_sei(self):
         if not self.driver:

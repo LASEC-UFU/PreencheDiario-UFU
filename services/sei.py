@@ -918,7 +918,7 @@ return norm(document.body && document.body.innerText).includes('escolha o tipo d
     def _esta_no_formulario_metadados(self) -> bool:
         script = r"""
 const porIdOuNome = id => document.getElementById(id) || document.querySelector(`[name="${id}"]`);
-return !!(porIdOuNome('txtDescricao') && porIdOuNome('txtNumero') && porIdOuNome('txtNomeArvore'));
+return !!porIdOuNome('txtDescricao');
 """
         try:
             return bool(self._achar(script))
@@ -996,10 +996,10 @@ function campo(ids, rotulo) {
 const descricao = campo(['txtDescricao'], 'descricao');
 const numero = campo(['txtNumero'], 'numero');
 const arvore = campo(['txtNomeArvore'], 'nome na arvore');
-if (!descricao || !numero || !arvore) return false;
-descricao.value = valores.descricao; emitir(descricao);
-numero.value = valores.numero; emitir(numero);
-arvore.value = valores.arvore; emitir(arvore);
+if (descricao) { descricao.value = valores.descricao; emitir(descricao); }
+if (numero && valores.numero) { numero.value = valores.numero; emitir(numero); }
+if (arvore && valores.arvore) { arvore.value = valores.arvore; emitir(arvore); }
+if (!descricao && !numero && !arvore) return false;
 let publico = document.querySelector('#rdoNivelAcesso0, input[name="rdoNivelAcesso"][value="0"]');
 if (!publico) {
   const label = Array.from(document.querySelectorAll('label')).find(l => norm(l.textContent) === 'publico');
@@ -1014,8 +1014,8 @@ return true;
             "numero": ficha.codigo,
             "arvore": ficha.nome_arvore,
         }
-        nome_completo = re.sub(r"\s+", " ", ficha.nome or "").strip().upper()
-        if ficha.nome_arvore != nome_completo:
+        nome_completo = re.sub(r"\s+", " ", ficha.nome or "").strip()
+        if ficha.nome_arvore.casefold() != nome_completo.casefold():
             self.log(
                 f"   Nome na Árvore truncado para {len(ficha.nome_arvore)} caracteres: "
                 f"{ficha.nome_arvore}"
@@ -1253,6 +1253,62 @@ return textarea ? performance.timeOrigin !== arguments[1] : null;
         self._clicar_salvar_metadados()
         self._dispensar_alerta_se_houver()
         self._salvar_html_no_editor(ficha, janela_principal)
+
+    def carregar_plano_ensino(self, plano) -> None:
+        """Cria um Plano de Ensino no processo aberto e grava seu HTML no editor."""
+        if not self.driver.window_handles:
+            raise RuntimeError("o navegador foi fechado")
+        janela_principal = self.driver.current_window_handle
+        self.driver.switch_to.window(janela_principal)
+        self.driver.switch_to.default_content()
+        if self._esta_no_formulario_metadados():
+            self.log("[SEI] Retomando da tela de metadados do Plano de Ensino.")
+        elif self._esta_na_escolha_de_tipo():
+            self.log("[SEI] Retomando da escolha do tipo de documento.")
+            self._escolher_tipo("Plano de Ensino")
+        else:
+            self._clicar_incluir_documento()
+            self._escolher_tipo("Plano de Ensino")
+        self._preencher_metadados(plano)
+        self._clicar_salvar_metadados()
+        self._dispensar_alerta_se_houver()
+        editor_encontrado = self._esperar(
+            lambda: self._achar_editor(janela_principal), "o modelo do Plano de Ensino no editor", timeout=30
+        )
+        editor_info, janela_editor = editor_encontrado
+        self.driver.switch_to.window(janela_editor)
+        self.driver.switch_to.default_content()
+        if editor_info["kind"] == "infraeditor":
+            modelo = self._achar(
+                r"""
+const info = arguments[0];
+const infra = window.infraEditor;
+if (!infra || !infra.editor) return null;
+return infra.editor.getData({rootName:info.rootName});
+""",
+                editor_info,
+            )
+        else:
+            modelo = self._achar(
+                r"""
+const info = arguments[0];
+const ta = (info.id && document.getElementById(info.id)) ||
+  Array.from(document.querySelectorAll('textarea')).find(el => el.name === info.name);
+return ta ? ta.value : null;
+""",
+                editor_info,
+            )
+        if not modelo:
+            raise RuntimeError("o SEI abriu o editor sem o modelo básico de Plano de Ensino")
+
+        from features.plano_ensino import mesclar_campos_no_modelo
+        from types import SimpleNamespace
+
+        html_preenchido, quantidade = mesclar_campos_no_modelo(modelo, plano.campos, plano.caminho)
+        self.log(f"[SEI] Campos preenchidos no modelo original: {quantidade}; instruções antigas removidas.")
+        conteudo = SimpleNamespace(html=html_preenchido, conteudo_editor=html_preenchido)
+        self._salvar_html_no_editor(conteudo, janela_principal, editor_encontrado)
+        self.log("[SEI] Plano de Ensino salvo como documento não assinado.")
 
     def carregar_ficha(self, ficha: FichaDisciplina) -> str:
         if not self.driver.window_handles:
